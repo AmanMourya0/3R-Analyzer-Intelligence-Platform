@@ -85,10 +85,42 @@ def build_filter_expression(ast: FilterGroup):
                 expr = column < val
             elif op == "lte" or op == "less than or equal" or op == "on or before":
                 expr = column <= val
-            elif op == "between":
-                if not isinstance(val, list) or len(val) != 2:
-                    raise ValueError(f"Operator 'between' requires a list of exactly 2 values.")
-                expr = column.between(val[0], val[1])
+            elif op in ("between", "on", "not_on", "before", "at_or_before", "after", "at_or_after"):
+                import datetime as dt
+                def parse_date(d_str: str) -> dt.datetime:
+                    # Strip time part if present, to just work with YYYY-MM-DD
+                    if "T" in d_str:
+                        d_str = d_str.split("T")[0]
+                    elif " " in d_str:
+                        d_str = d_str.split(" ")[0]
+                    return dt.datetime.strptime(d_str, "%Y-%m-%d")
+
+                def next_day(d: dt.datetime) -> dt.datetime:
+                    return d + dt.timedelta(days=1)
+
+                if op == "between":
+                    if isinstance(val, dict) and "from" in val and "to" in val:
+                        start = parse_date(val["from"])
+                        end = parse_date(val["to"])
+                        expr = and_(column >= start, column < next_day(end))
+                    elif isinstance(val, list) and len(val) == 2:
+                        expr = column.between(val[0], val[1])
+                    else:
+                        raise ValueError(f"Operator 'between' requires a dict with 'from' and 'to'.")
+                elif op == "on":
+                    d = parse_date(val)
+                    expr = and_(column >= d, column < next_day(d))
+                elif op == "not_on":
+                    d = parse_date(val)
+                    expr = or_(column < d, column >= next_day(d))
+                elif op == "before":
+                    expr = column < parse_date(val)
+                elif op == "at_or_before":
+                    expr = column < next_day(parse_date(val))
+                elif op == "after":
+                    expr = column >= next_day(parse_date(val))
+                elif op == "at_or_after":
+                    expr = column >= parse_date(val)
             elif op == "is true":
                 expr = column == True
             elif op == "is false":
