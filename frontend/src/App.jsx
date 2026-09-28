@@ -258,6 +258,7 @@ export default function App() {
   const [toast, setToast]           = useState(null)
   const [dataLoaded, setDataLoaded] = useState(false)
   const [serverReady, setServerReady] = useState(false)
+  const [offline, setOffline] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   const [theme, setTheme] = useState(() => {
     const saved = getSavedTheme(); applyTheme(saved); return saved
@@ -269,10 +270,14 @@ export default function App() {
       getHealth()
         .then(r => {
           setServerReady(true)
+          setOffline(false)
           setDataLoaded(r.data.data_loaded)
           warmup().catch(() => {})
         })
-        .catch(() => { if (++attempts < 20) setTimeout(ping, 3000) })
+        .catch(() => { 
+            if (++attempts < 3) setTimeout(ping, 3000) 
+            else setOffline(true)
+        })
     }
     ping()
   }, [])
@@ -325,6 +330,18 @@ export default function App() {
     }, 3000)
   }
 
+
+  if (offline) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--text)' }}>
+        <div style={{ textAlign: 'center' }}>
+          <AlertCircle size={48} color="var(--red)" style={{ marginBottom: 16 }} />
+          <h2>Platform Maintenance</h2>
+          <p style={{ color: 'var(--text2)' }}>The 3R Analyzer Intelligence backend is currently unavailable.</p>
+        </div>
+      </div>
+    )
+  }
   return (
     <BrowserRouter>
       <AppInner

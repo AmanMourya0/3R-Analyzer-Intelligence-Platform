@@ -139,8 +139,8 @@ def test_high_velocity_burst_with_support_is_runner(classifier):
     assert summaries[0].three_r_reason == "High-velocity burst with supporting impact/problem signal"
 
 def test_noise_matching(classifier, monkeypatch):
-    import app.clustering.three_r_classifier as m
-    monkeypatch.setattr(m, "SIMILARITY_THRESHOLD", 0.85)
+    from app.config.settings import settings
+    monkeypatch.setattr(settings, "SIMILARITY_THRESHOLD", 0.85)
     
     df = pd.DataFrame({CLUSTER_ID: [1, 1, NOISE_CLUSTER, NOISE_CLUSTER]})
     embeddings = np.array([

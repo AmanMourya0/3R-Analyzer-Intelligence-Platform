@@ -3,7 +3,18 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { getJobs, getJob } from '../api'
 import Card from '../components/Card'
 import Badge from '../components/Badge'
+import ColumnSelector from '../components/ColumnSelector'
 import { ChevronLeft, ChevronRight, Clock, CheckCircle, AlertCircle, PlayCircle, Loader as SpinIcon, Activity, ExternalLink, Info, AlertTriangle, X } from 'lucide-react'
+
+const jobColumns = [
+  { key: 'status', label: 'STATUS', required: true },
+  { key: 'dataset', label: 'DATASET', required: true },
+  { key: 'progress', label: 'PROGRESS', defaultVisible: true },
+  { key: 'duration', label: 'DURATION', defaultVisible: true },
+  { key: 'tickets', label: 'TICKETS', defaultVisible: true },
+  { key: 'clusters', label: 'CLUSTERS', defaultVisible: true },
+  { key: 'date', label: 'DATE', defaultVisible: true },
+]
 
 export default function Jobs() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -20,6 +31,8 @@ export default function Jobs() {
   const [error, setError] = useState('')
   const pageSize = 20
   
+  const [visibleCols, setVisibleCols] = useState(jobColumns.map(c => c.key))
+
   const activeJobsExist = jobs.some(j => ['QUEUED', 'RUNNING', 'PROCESSING'].includes(j.status))
 
   const loadData = async (currentPage) => {
@@ -69,9 +82,16 @@ export default function Jobs() {
   return (
     <div className="fade-up" style={{ paddingBottom: 60, display: 'flex', gap: 20 }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ marginBottom: 24 }}>
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>Job Operations</h1>
-          <p style={{ fontSize: 13, color: 'var(--text2)', marginTop: 4 }}>Monitor dataset processing and AI analysis history.</p>
+        <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>Job Operations</h1>
+            <p style={{ fontSize: 13, color: 'var(--text2)', marginTop: 4 }}>Monitor dataset processing and AI analysis history.</p>
+          </div>
+          <ColumnSelector 
+            columns={jobColumns} 
+            tableKey="jobs" 
+            onColumnChange={setVisibleCols} 
+          />
         </div>
 
         {error ? (
@@ -112,8 +132,8 @@ export default function Jobs() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
-                    {['Status', 'Dataset', 'Progress', 'Duration', 'Tickets', 'Clusters', 'Date'].map(h => (
-                      <th key={h} style={{ textAlign: 'left', padding: '10px 12px', color: 'var(--text2)', fontWeight: 500, fontSize: 11, whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
+                    {jobColumns.filter(c => visibleCols.includes(c.key)).map(c => (
+                      <th key={c.key} style={{ textAlign: 'left', padding: '10px 12px', color: 'var(--text2)', fontWeight: 500, fontSize: 11, whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{c.label}</th>
                     ))}
                   </tr>
                 </thead>
@@ -129,23 +149,37 @@ export default function Jobs() {
                       }}
                       onClick={() => handleSelect(j.id)}
                     >
-                      <td style={td}>
-                         <StatusBadge status={j.status} />
-                      </td>
-                      <td style={{ ...td, maxWidth: 200, fontWeight: 500 }}>
-                        <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                           {formatDatasetPath(j.dataset_path)}
-                        </div>
-                      </td>
-                      <td style={{ ...td, maxWidth: 150 }}>
-                         <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: 11 }}>
-                           {j.progress_percent ?? 0}% - {j.progress_stage || 'Unknown'}
-                         </div>
-                      </td>
-                      <td style={td}>{j.processing_time_seconds ? `${Math.round(j.processing_time_seconds)}s` : '—'}</td>
-                      <td style={td}>{j.total_incidents?.toLocaleString() || '—'}</td>
-                      <td style={td}>{j.total_clusters?.toLocaleString() || '—'}</td>
-                      <td style={{ ...td, color: 'var(--text2)', whiteSpace: 'nowrap' }}>{j.created_at ? new Date(j.created_at).toLocaleString() : '—'}</td>
+                      {visibleCols.includes('status') && (
+                        <td style={td}>
+                           <StatusBadge status={j.status} />
+                        </td>
+                      )}
+                      {visibleCols.includes('dataset') && (
+                        <td style={{ ...td, maxWidth: 200, fontWeight: 500 }}>
+                          <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                             {formatDatasetPath(j.dataset_path)}
+                          </div>
+                        </td>
+                      )}
+                      {visibleCols.includes('progress') && (
+                        <td style={{ ...td, maxWidth: 150 }}>
+                           <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: 11 }}>
+                             {j.progress_percent ?? 0}% - {j.progress_stage || 'Unknown'}
+                           </div>
+                        </td>
+                      )}
+                      {visibleCols.includes('duration') && (
+                        <td style={td}>{j.processing_time_seconds ? `${Math.round(j.processing_time_seconds)}s` : '—'}</td>
+                      )}
+                      {visibleCols.includes('tickets') && (
+                        <td style={td}>{j.total_incidents?.toLocaleString() || '—'}</td>
+                      )}
+                      {visibleCols.includes('clusters') && (
+                        <td style={td}>{j.total_clusters?.toLocaleString() || '—'}</td>
+                      )}
+                      {visibleCols.includes('date') && (
+                        <td style={{ ...td, color: 'var(--text2)', whiteSpace: 'nowrap' }}>{j.created_at ? new Date(j.created_at).toLocaleString() : '—'}</td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

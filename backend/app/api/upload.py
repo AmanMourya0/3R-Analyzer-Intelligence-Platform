@@ -65,14 +65,16 @@ async def upload_dataset(
         UPLOAD_DIRECTORY / unique_name
     )
 
-    with destination.open(
-        "wb"
-    ) as buffer:
+    with destination.open("wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
 
-        shutil.copyfileobj(
-            file.file,
-            buffer
-        )
+    size = destination.stat().st_size
+    if size == 0:
+        destination.unlink()
+        raise HTTPException(status_code=400, detail="File is empty.")
+    if size > 100 * 1024 * 1024:
+        destination.unlink()
+        raise HTTPException(status_code=400, detail="File exceeds maximum size of 100MB.")
 
     logger.info(
         "Dataset uploaded: %s",

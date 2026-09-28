@@ -317,12 +317,12 @@ export default function Sidebar({
 
           {processing
             ? 'Processing…'
-            : 'Upload CSV'
+            : 'Upload File'
           }
 
           <input
             type="file"
-            accept=".csv"
+            accept=".csv,.xlsx,.xls"
             style={{
               display: 'none',
             }}

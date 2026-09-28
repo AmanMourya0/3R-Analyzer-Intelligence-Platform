@@ -80,3 +80,12 @@ THREE_R_RUNNER = "RUNNER"
 THREE_R_REPEATER = "REPEATER"
 
 THREE_R_RARE = "RARE"
+
+CALLER = 'caller'
+ASSIGNED_TO = 'assigned_to'
+RESOLVED_BY = 'resolved_by'
+KB_NUMBER = 'kb_number'
+IT_BATCH_JOB = 'it_batch_job'
+REASSIGNMENT_COUNT = 'reassignment_count'
+OFFENDING_CI = 'offending_ci'
+OFFENDING_CI_CATEGORY = 'offending_ci_category'

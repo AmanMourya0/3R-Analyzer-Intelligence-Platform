@@ -11,10 +11,10 @@ Project: 3R Analyzer Intelligence
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.config.database import DATABASE_URL
+from app.config.settings import settings
 
 engine = create_engine(
-    DATABASE_URL,
+    settings.DATABASE_URL,
     pool_pre_ping=True,
     future=True
 )

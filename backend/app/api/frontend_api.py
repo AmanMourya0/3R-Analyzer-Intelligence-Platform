@@ -224,17 +224,20 @@ def api_tickets(
     Returns { tickets: [...], total: int, page: int, page_size: int, total_pages: int }
     Supports legacy filters + AST structured filters.
     """
-    return _compat_service.get_tickets(
-        cluster_id=cluster_id,
-        ci_name=ci_name,
-        assigned_group=assigned_group,
-        three_r_category=three_r_category,
-        filter_json=filter,
-        sort_json=sort,
-        page=page,
-        page_size=page_size,
-        limit=limit,
-    )
+    try:
+        return _compat_service.get_tickets(
+            cluster_id=cluster_id,
+            ci_name=ci_name,
+            assigned_group=assigned_group,
+            three_r_category=three_r_category,
+            filter_json=filter,
+            sort_json=sort,
+            page=page,
+            page_size=page_size,
+            limit=limit,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # ==============================================================
@@ -247,7 +250,10 @@ def export_tickets_csv(
     sort: Optional[str] = Query(None, description="JSON encoded SortRule list")
 ):
     """Exports tickets exactly matching current filters to a CSV attachment."""
-    content = report_service.export_tickets_csv(filter_json=filter, sort_json=sort)
+    try:
+        content = report_service.export_tickets_csv(filter_json=filter, sort_json=sort)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     return Response(
         content=content,
         media_type="text/csv",
@@ -280,7 +286,10 @@ def export_executive_report_pdf(
     sort: Optional[str] = Query(None, description="JSON encoded SortRule list")
 ):
     """Generates a leadership-ready PDF report covering the given scope."""
-    content = report_service.generate_executive_report_pdf(filter_json=filter, sort_json=sort)
+    try:
+        content = report_service.generate_executive_report_pdf(filter_json=filter, sort_json=sort)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     return Response(
         content=content,
         media_type="application/pdf",
@@ -346,15 +355,30 @@ def api_servicenow_groups():
     return {"groups": []}
 
 
-@router.post("/servicenow-import", summary="ServiceNow import (deferred)")
-def api_servicenow_import():
+from app.schemas.process_request import ProcessRequest
+
+@router.post("/servicenow-import", summary="ServiceNow import")
+def api_servicenow_import(
+    request: ProcessRequest,
+    job_service: JobService = Depends(get_job_service)
+):
     """
-    ServiceNow import deferred. Returns informative message.
+    ServiceNow import. Accepts filter AST.
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="ServiceNow import is not yet available. Please use CSV upload.",
-    )
+    try:
+        job = job_service.create_processing_job(
+            dataset_path="", 
+            source_type="servicenow",
+            filter_ast=request.filter_ast,
+        )
+        logger.info("Created processing job %s for ServiceNow import.", job.id)
+        return {"status": "queued", "message": "ServiceNow import started.", "job_id": str(job.id)}
+    except Exception as exc:
+        logger.exception("Failed to start ServiceNow import.")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(exc),
+        )
 
 
 # ==============================================================

@@ -102,6 +102,9 @@ class JobRepository(RepositoryInterface):
             .all()
         )
 
+    def has_running_job(self) -> bool:
+        return self.session.query(ProcessingJob).filter(ProcessingJob.status == JOB_STATUS_RUNNING).count() > 0
+
     def list_jobs_paginated(
         self,
         page: int = 1,

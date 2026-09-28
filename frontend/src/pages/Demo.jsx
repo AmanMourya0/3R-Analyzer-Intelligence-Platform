@@ -122,7 +122,7 @@ export default function Demo({ onUpload, processing, dataLoaded, refreshKey }) {
           <span style={{ fontSize: 11, color: 'var(--text2)', textAlign: 'center' }}>
             {processing ? 'Processing…' : 'Click or drag & drop'}
           </span>
-          <input type="file" accept=".csv" style={{ display: 'none' }} disabled={processing}
+          <input type="file" accept=".csv,.xlsx,.xls" style={{ display: 'none' }} disabled={processing}
             onChange={e => handleFile(e.target.files[0])} />
         </label>
 

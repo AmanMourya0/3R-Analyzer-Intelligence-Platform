@@ -13,12 +13,7 @@ import hdbscan
 
 from app.interfaces.clustering_interface import ClusteringInterface
 
-from app.config.settings import (
-    MIN_CLUSTER_SIZE,
-    MIN_SAMPLES,
-    CLUSTER_SELECTION_METHOD,
-    CLUSTER_METRIC
-)
+from app.config.settings import settings
 
 from app.utils.logger import logger
 
@@ -34,13 +29,13 @@ class SemanticClusterer(ClusteringInterface):
 
         self.clusterer = hdbscan.HDBSCAN(
 
-            min_cluster_size=MIN_CLUSTER_SIZE,
+            min_cluster_size=settings.MIN_CLUSTER_SIZE,
 
-            min_samples=MIN_SAMPLES,
+            min_samples=settings.MIN_SAMPLES,
 
-            metric=CLUSTER_METRIC,
+            metric=settings.CLUSTER_METRIC,
 
-            cluster_selection_method=CLUSTER_SELECTION_METHOD
+            cluster_selection_method=settings.CLUSTER_SELECTION_METHOD
         )
 
     def generate(

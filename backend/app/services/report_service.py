@@ -44,6 +44,7 @@ class ReportService:
                     ast = FilterGroup(**parsed)
             except Exception as e:
                 logging.error(f"Failed to parse filter AST in report: {e}")
+                raise ValueError(f"Invalid filter AST: {e}")
 
         # Always outerjoin to fetch three_r_reason and problem_candidate reliably
         q = q.outerjoin(Cluster, Incident.cluster_id == Cluster.cluster_id)
@@ -76,6 +77,7 @@ class ReportService:
                     q = apply_sorting(q, rules)
             except Exception as e:
                 logging.error(f"Failed to parse sort rules in report: {e}")
+                raise ValueError(f"Invalid sort definition: {e}")
         else:
             q = q.order_by(Incident.created_date.desc())
 

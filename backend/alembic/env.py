@@ -21,8 +21,8 @@ from app.database.cluster_model import Cluster
 from app.database.recurrence_model import Recurrence
 from app.database.processing_job_model import ProcessingJob
 
-from app.config.database import DATABASE_URL
-config.set_main_option("sqlalchemy.url", DATABASE_URL)
+from app.config.settings import settings
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 target_metadata = Base.metadata
 

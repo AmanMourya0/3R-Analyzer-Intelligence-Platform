@@ -13,16 +13,29 @@ from app.schemas.filter_ast import FilterCondition, FilterGroup, SortRule
 # Maps logical field names to SQLAlchemy columns
 FIELD_REGISTRY = {
     "incident_number": Incident.incident_number,
+    "caller": Incident.caller,
     "short_description": Incident.short_description,
     "description": Incident.description,
+    "category": Incident.category,
+    "priority": Incident.priority,
+    "state": Incident.state,
+    "assigned_to": Incident.assigned_to,
+    "resolved_by": Incident.resolved_by,
+    "kb_number": Incident.kb_number,
+    "it_batch_job": Incident.it_batch_job,
+    "reassignment_count": Incident.reassignment_count,
+    "configuration_item": Incident.configuration_item,
+    "offending_ci": Incident.offending_ci,
+    "offending_ci_category": Incident.offending_ci_category,
+    
+    # Legacy/Existing fields
     "three_r_category": Incident.three_r_category,
     "cluster_id": Incident.cluster_id,
     "cluster_name": Cluster.cluster_name,
     "semantic_match_cluster_id": Incident.semantic_match_cluster_id,
-    "ci_name": Incident.configuration_item,
-    "assigned_group": Incident.assignment_group,
-    "priority": Incident.priority,
-    "state": Incident.state,
+    "ci_name": Incident.configuration_item,  # keeping for legacy filters
+    "assigned_group": Incident.assignment_group,  # keeping for legacy filters
+    "assignment_group": Incident.assignment_group,
     "region": Incident.region,
     "problem_candidate": Recurrence.problem_candidate,
     "three_r_reason": Cluster.three_r_reason,

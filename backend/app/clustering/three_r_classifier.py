@@ -20,7 +20,7 @@ from app.constants import (
     NOISE_CLUSTER,
     CREATED_DATE
 )
-from app.config.settings import SIMILARITY_THRESHOLD
+from app.config.settings import settings
 from app.models.cluster_summary import ClusterSummary
 from app.models.recurrence_result import RecurrenceResult
 from app.models.three_r_summary import ThreeRSummary
@@ -174,7 +174,7 @@ class ThreeRClassifier:
                 similarities = cosine_similarity_vectors(emb, centroid_matrix)
                 best_idx = np.argmax(similarities)
                 max_sim = similarities[best_idx]
-                if max_sim >= SIMILARITY_THRESHOLD:
+                if max_sim >= settings.SIMILARITY_THRESHOLD:
                     matched_cid = centroid_cids[best_idx]
             
             if matched_cid is not None:

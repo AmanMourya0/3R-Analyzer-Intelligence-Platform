@@ -149,80 +149,62 @@ def _clean_text_field(text: str) -> str:
 class Preprocessor:
 
     COLUMN_MAPPING = {
-
-        "Incident Number": "incident_number",
-
-        "Short Description": "short_description",
-
-        "Description": "description",
-
-        "Category": "category",
-
-        "Subcategory": "subcategory",
-
-        "Priority": "priority",
-
-        "State": "state",
-
+        "Number": "incident_number",
+        "Caller": "caller",
         "Assignment Group": "assignment_group",
+        "Created": "created_date",
+        "Short description": "short_description",
+        "Category": "category",
+        "Priority": "priority",
+        "State": "state",
+        "Assigned to": "assigned_to",
+        "Resolved by": "resolved_by",
+        "Resolved": "resolved_date",
+        "KB Number": "kb_number",
+        "IT Batch Job": "it_batch_job",
+        "Description": "description",
+        "Reassignment Count": "reassignment_count",
+        "Configuration item": "configuration_item",
+        "Offending CI": "offending_ci",
+        "Offending CI Category": "offending_ci_category",
 
-        "Configuration Item (Application)": "configuration_item",
-
+        # Legacy mappings preserved as requested for existing tests/compatibility
+        "Incident Number": "incident_number",
+        "Short Description": "short_description",
+        "Subcategory": "subcategory",
         "Business Service": "business_service",
-
         "Region": "region",
-
         "Created Date": "created_date",
-
         "Resolved Date": "resolved_date",
-
         "Resolution Notes": "resolution_notes",
-
         "Problem Candidate": "problem_candidate",
-
-        # Common frontend and ServiceNow CSV headers
-        "ticket_id": "incident_number",
-        "ci_name": "configuration_item",
-        "assigned_group": "assignment_group",
-        "status": "state",
-        "resolution": "resolution_notes",
-
     }
 
     REQUIRED_COLUMNS = [
-
-        SHORT_DESCRIPTION,
-
-        DESCRIPTION
-
+        "short_description",
+        "description"
     ]
 
     TEXT_COLUMNS = [
-
-        INCIDENT_NUMBER,
-
-        SHORT_DESCRIPTION,
-
-        DESCRIPTION,
-
-        CATEGORY,
-
-        SUBCATEGORY,
-
-        PRIORITY,
-
-        STATE,
-
-        ASSIGNMENT_GROUP,
-
-        CONFIGURATION_ITEM,
-
-        BUSINESS_SERVICE,
-
-        REGION,
-
-        RESOLUTION_NOTES
-
+        "incident_number",
+        "caller",
+        "short_description",
+        "description",
+        "category",
+        "subcategory",
+        "priority",
+        "state",
+        "assignment_group",
+        "assigned_to",
+        "resolved_by",
+        "configuration_item",
+        "offending_ci",
+        "offending_ci_category",
+        "business_service",
+        "region",
+        "resolution_notes",
+        "kb_number",
+        "it_batch_job"
     ]
 
     def clean(

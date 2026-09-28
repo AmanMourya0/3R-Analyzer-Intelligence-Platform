@@ -500,10 +500,14 @@ export default function Home({
                 or click to browse
               </span>
 
+              <div style={{ marginTop: '12px', fontSize: '11px', color: 'var(--text3)' }}>
+                Supported ServiceNow files: CSV, Excel (.xlsx, .xls)
+              </div>
+
 
               <input
                 type="file"
-                accept=".csv"
+                accept=".csv,.xlsx,.xls"
                 style={{ display: 'none' }}
                 disabled={processing}
                 onChange={event => {
@@ -520,12 +524,12 @@ export default function Home({
               disabled={processing}
               onClick={() => {
                 document
-                  .querySelector('input[accept=".csv"]')
+                  .querySelector('input[type="file"]')
                   ?.click()
               }}
               style={primaryBtn('var(--accent)')}
             >
-              {processing ? 'Processing...' : 'Upload CSV'}
+              {processing ? 'Processing...' : 'Upload File'}
             </button>
 
           </div>

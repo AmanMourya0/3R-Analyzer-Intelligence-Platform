@@ -47,7 +47,13 @@ _SESSION_FACTORY = sessionmaker(autocommit=False, autoflush=False, bind=_ENGINE)
 def patch_session_local(monkeypatch):
     """Patch SessionLocal so all service/repository calls use SQLite."""
     from app.database import database as db_module
+    from app.services.frontend_compatibility_service import FrontendCompatibilityService
     monkeypatch.setattr(db_module, "SessionLocal", _SESSION_FACTORY)
+    
+    # Also patch the service's _session method to return a clean session from the factory
+    # to avoid issues where it cached the unpatched SessionLocal
+    monkeypatch.setattr(FrontendCompatibilityService, "_session", lambda self: _SESSION_FACTORY())
+    
     yield
 
 

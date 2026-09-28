@@ -5,55 +5,60 @@ Author: Aman Maurya
 Project: 3R Analyzer Intelligence
 """
 
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field
+from typing import List
 
+class Settings(BaseSettings):
+    # App config
+    APP_NAME: str = "3R Analyzer Intelligence"
+    ENVIRONMENT: str = Field(default="development")
+    LOG_LEVEL: str = Field(default="INFO")
+    
+    # CORS
+    ALLOWED_ORIGINS: List[str] = Field(
+        default=["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"]
+    )
 
-# -------------------------------------------------------
-# Embedding Model Configuration
-# -------------------------------------------------------
+    # Database Configuration
+    DB_HOST: str
+    DB_PORT: int
+    DB_NAME: str
+    DB_USER: str
+    DB_PASSWORD: str
 
-EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+    # ML Configuration
+    EMBEDDING_MODEL: str = Field(default="all-MiniLM-L6-v2")
+    EMBEDDING_BATCH_SIZE: int = Field(default=512)
+    
+    # HDBSCAN Configuration
+    MIN_CLUSTER_SIZE: int = Field(default=5)
+    MIN_SAMPLES: int = Field(default=3)
+    CLUSTER_SELECTION_METHOD: str = Field(default="eom")
+    CLUSTER_METRIC: str = Field(default="euclidean")
+    
+    # 3R Classifier & Processing Thresholds
+    SIMILARITY_THRESHOLD: float = Field(default=0.85)
+    PROBLEM_CANDIDATE_THRESHOLD: int = Field(default=50)
 
-EMBEDDING_BATCH_SIZE = 512
+    # Note: Priority weights remain a constant dict but could be configured if needed
+    PRIORITY_WEIGHTS: dict = {
+        "P1": 5,
+        "P2": 4,
+        "P3": 3,
+        "P4": 2,
+        "P5": 1
+    }
 
-# ==========================================================
-# HDBSCAN Configuration
-# ==========================================================
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
 
-MIN_CLUSTER_SIZE = 5
+    @property
+    def DATABASE_URL(self) -> str:
+        return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
-MIN_SAMPLES = 3
-
-CLUSTER_SELECTION_METHOD = "eom"
-
-CLUSTER_METRIC = "euclidean"
-
-# -------------------------------------------------------
-# Logging
-# -------------------------------------------------------
-
-LOG_LEVEL = "INFO"
-
-# -------------------------------------------------------
-# Future Similarity Threshold
-# -------------------------------------------------------
-
-SIMILARITY_THRESHOLD = 0.85
-
-# ==========================================================
-# Priority Weights
-# ==========================================================
-
-PRIORITY_WEIGHTS = {
-    "P1": 5,
-    "P2": 4,
-    "P3": 3,
-    "P4": 2,
-    "P5": 1
-}
-
-# ==========================================================
-# Recurrence Threshold
-# ==========================================================
-
-PROBLEM_CANDIDATE_THRESHOLD = 50
-
+# Global settings instance
+settings = Settings()

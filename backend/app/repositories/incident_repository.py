@@ -86,6 +86,7 @@ class IncidentRepository(RepositoryInterface):
                 incident_records.append(
                     Incident(
                         incident_number=_to_str(row.get(INCIDENT_NUMBER)),
+                        caller=_to_str(row.get("caller")),
                         short_description=_to_str(row.get(SHORT_DESCRIPTION)),
                         description=_to_str(row.get(DESCRIPTION)),
                         category=_to_str(row.get(CATEGORY)),
@@ -93,11 +94,18 @@ class IncidentRepository(RepositoryInterface):
                         priority=_to_str(row.get(PRIORITY)),
                         state=_to_str(row.get(STATE)),
                         assignment_group=_to_str(row.get(ASSIGNMENT_GROUP)),
+                        assigned_to=_to_str(row.get("assigned_to")),
+                        resolved_by=_to_str(row.get("resolved_by")),
                         configuration_item=_to_str(row.get(CONFIGURATION_ITEM)),
+                        offending_ci=_to_str(row.get("offending_ci")),
+                        offending_ci_category=_to_str(row.get("offending_ci_category")),
                         business_service=_to_str(row.get(BUSINESS_SERVICE)),
                         region=_to_str(row.get(REGION)),
                         created_date=_parse_dt(row.get(CREATED_DATE)),
                         resolved_date=_parse_dt(row.get(RESOLVED_DATE)),
+                        kb_number=_to_str(row.get("kb_number")),
+                        it_batch_job=_to_str(row.get("it_batch_job")),
+                        reassignment_count=int(row.get("reassignment_count")) if pd.notna(row.get("reassignment_count")) and str(row.get("reassignment_count")).strip() != "" else None,
                         cluster_id=cluster_id_val,
                         three_r_category=_to_str(row.get(THREE_R_CATEGORY)),
                         semantic_match_cluster_id=row.get(SEMANTIC_MATCH_CLUSTER_ID) if not pd.isna(row.get(SEMANTIC_MATCH_CLUSTER_ID)) else None

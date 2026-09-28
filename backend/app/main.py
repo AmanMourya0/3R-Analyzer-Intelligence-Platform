@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.config.settings import settings
 
 from app.api.jobs import router as jobs_router
 from app.api.process import router as process_router
@@ -20,6 +21,7 @@ from app.core.dependencies import (
 )
 
 from app.database.init_db import initialize_database
+from app.database.database import SessionLocal
 
 from app.utils.logger import logger
 from app.api.dashboard import router as dashboard_router
@@ -27,6 +29,8 @@ from app.api.upload import router as upload_router
 from app.api.analytics import router as analytics_router
 from app.api.reports import router as reports_router
 from app.api.frontend_api import router as frontend_api_router
+from sqlalchemy import text
+from fastapi import Response
 
 
 # ==========================================================
@@ -69,7 +73,7 @@ async def lifespan(app: FastAPI):
 # ==========================================================
 
 app = FastAPI(
-    title="3R Analyzer Intelligence",
+    title=settings.APP_NAME,
     version="0.3.0",
     description="Recurring Incident Intelligence Platform",
     lifespan=lifespan
@@ -82,11 +86,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -126,3 +126,21 @@ def root() -> dict:
         "application": "3R Analyzer Intelligence",
         "version": "0.3.0"
     }
+
+@app.get("/health", tags=["Application"])
+def health_check() -> dict:
+    '''Process liveness check.'''
+    return {"status": "ok", "service": settings.APP_NAME}
+
+@app.get("/ready", tags=["Application"])
+def readiness_check(response: Response) -> dict:
+    '''Dependencies check (e.g., PostgreSQL).'''
+    try:
+        session = SessionLocal()
+        session.execute(text("SELECT 1"))
+        session.close()
+        return {"status": "ready"}
+    except Exception as e:
+        logger.exception("Readiness check failed")
+        response.status_code = 503
+        return {"status": "error", "detail": "Database unavailable"}

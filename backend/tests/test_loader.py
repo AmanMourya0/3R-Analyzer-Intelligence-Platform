@@ -12,13 +12,8 @@ def test_loader_reads_csv_and_preprocessor_adds_combined_text(tmp_path):
     dataset.write_text(
         "\n".join(
             [
-                "Incident Number,Short Description,Description,Category,Subcategory,"
-                "Priority,State,Assignment Group,Configuration Item (Application),"
-                "Business Service,Region,Created Date,Resolved Date,Resolution Notes,"
-                "Problem Candidate",
-                "INC001,Email Down,Mail unavailable,Software,Email,P2,Closed,"
-                "Messaging,Exchange,Collaboration,NA,2026-01-01,2026-01-01,"
-                "Fixed,False",
+                "Number,Caller,Assignment Group,Created,Short description,Category,Priority,State,Assigned to,Resolved by,Resolved,KB Number,IT Batch Job,Description,Reassignment Count,Configuration item,Offending CI,Offending CI Category",
+                "INC001,Alice,Messaging,2026-01-01,Email Down,Software,P2,Closed,Bob,Bob,2026-01-01,, ,Mail unavailable,0,Exchange,Exchange Server,Hardware",
             ]
         ),
         encoding="utf-8"

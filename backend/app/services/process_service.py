@@ -200,6 +200,9 @@ class ProcessService:
         # AI Pipeline
         # --------------------------------------------------
 
+        from app.services.performance.stage_timer import PipelineProfiler
+        PipelineProfiler.get_instance().current_job_id = job.id
+
         result = self.pipeline.run(
             dataframe,
             progress_callback=progress_callback
@@ -324,6 +327,12 @@ class ProcessService:
                     job_id
                 )
 
+                return
+
+            if repository.has_running_job():
+                logger.warning("Another job is already running. Failing job %s.", job_id)
+                repository.mark_failed(job, "Another AI clustering job is currently active.")
+                session.commit()
                 return
 
             # --------------------------------------------------

@@ -38,8 +38,41 @@ class IncidentLoader:
             else:
 
                 raise ValueError(
-                    f"Unsupported file type: {extension}"
+                    f"Unsupported file format.\nSupported formats: CSV, XLSX, XLS."
                 )
+
+            # Strip column names to handle trailing whitespaces safely
+            df.columns = df.columns.str.strip().str.replace(r'\s+', ' ', regex=True)
+
+            expected_columns = [
+                "Number",
+                "Caller",
+                "Assignment Group",
+                "Created",
+                "Short description",
+                "Category",
+                "Priority",
+                "State",
+                "Assigned to",
+                "Resolved by",
+                "Resolved",
+                "KB Number",
+                "IT Batch Job",
+                "Description",
+                "Reassignment Count",
+                "Configuration item",
+                "Offending CI",
+                "Offending CI Category"
+            ]
+
+            missing_columns = [col for col in expected_columns if col not in df.columns]
+
+            if missing_columns:
+                msg = (
+                    "Missing columns:\n" + "\n".join(missing_columns) +
+                    "\n\nExpected format:\n" + "\n".join(expected_columns)
+                )
+                raise ValueError(msg)
 
             logger.info(
                 "Loaded %s incidents.",

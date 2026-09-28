@@ -364,6 +364,7 @@ class FrontendCompatibilityService:
                         ast = FilterGroup(**parsed)
                 except Exception as e:
                     logging.error(f"Failed to parse filter AST: {e}")
+                    raise ValueError(f"Invalid filter AST: {e}")
 
             # Decide on joins based on AST fields
             needs_cluster = ast and has_cluster_field(ast)
@@ -405,6 +406,7 @@ class FrontendCompatibilityService:
                         q = apply_sorting(q, rules)
                 except Exception as e:
                     logging.error(f"Failed to parse sort rules: {e}")
+                    raise ValueError(f"Invalid sort definition: {e}")
             else:
                 # Default fallback sort
                 q = q.order_by(Incident.created_date.desc())
@@ -428,14 +430,30 @@ class FrontendCompatibilityService:
                     
                 tickets.append({
                     "ticket_id": inc.incident_number,
+                    "incident_number": inc.incident_number,
+                    "caller": inc.caller,
                     "short_description": inc.short_description,
                     "description": inc.description,
+                    "category": inc.category,
                     "priority": inc.priority,
-                    "status": inc.state,
-                    "ci_name": inc.configuration_item,
-                    "assigned_group": inc.assignment_group,
+                    "state": inc.state,
+                    "status": inc.state, # for legacy
+                    "assignment_group": inc.assignment_group,
+                    "assigned_group": inc.assignment_group, # for legacy
+                    "assigned_to": inc.assigned_to,
+                    "resolved_by": inc.resolved_by,
+                    "kb_number": inc.kb_number,
+                    "it_batch_job": inc.it_batch_job,
+                    "reassignment_count": inc.reassignment_count,
+                    "configuration_item": inc.configuration_item,
+                    "ci_name": inc.configuration_item, # for legacy
+                    "offending_ci": inc.offending_ci,
+                    "offending_ci_category": inc.offending_ci_category,
                     "created_date": (
                         inc.created_date.strftime("%Y-%m-%d") if inc.created_date else None
+                    ),
+                    "resolved_date": (
+                        inc.resolved_date.strftime("%Y-%m-%d") if inc.resolved_date else None
                     ),
                     "cluster_id": cid if cid is not None else -1,
                     "cluster_name": cluster_name,

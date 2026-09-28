@@ -15,8 +15,7 @@ from typing import List
 
 import numpy as np
 from sentence_transformers import SentenceTransformer
-from app.config.settings import EMBEDDING_MODEL
-from app.config.settings import EMBEDDING_BATCH_SIZE
+from app.config.settings import settings
 from app.utils.logger import logger
 
 
@@ -38,7 +37,7 @@ class SemanticEmbeddingGenerator(EmbeddingInterface):
 
             logger.info("Loading Sentence Transformer model...")
 
-            self.model = SentenceTransformer(EMBEDDING_MODEL)
+            self.model = SentenceTransformer(settings.EMBEDDING_MODEL)
 
             logger.info("Embedding model loaded successfully.")
 
@@ -72,7 +71,7 @@ class SemanticEmbeddingGenerator(EmbeddingInterface):
 
             embeddings = self.model.encode(
                 texts,
-                batch_size=EMBEDDING_BATCH_SIZE,
+                batch_size=settings.EMBEDDING_BATCH_SIZE,
                 show_progress_bar=True,
                 convert_to_numpy=True
             )

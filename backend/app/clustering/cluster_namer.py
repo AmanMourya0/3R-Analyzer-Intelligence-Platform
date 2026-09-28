@@ -3,7 +3,7 @@ from collections import Counter
 from typing import Dict, List
 
 from app.models.cluster_summary import ClusterSummary
-from app.config.settings import EMBEDDING_MODEL
+from app.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ def _get_kw_model():
             from keybert import KeyBERT
             from sentence_transformers import SentenceTransformer
             logger.info("Loading KeyBERT model: %s", EMBEDDING_MODEL)
-            st_model = SentenceTransformer(EMBEDDING_MODEL)
+            st_model = SentenceTransformer(settings.EMBEDDING_MODEL)
             _kw_model = KeyBERT(model=st_model)
             logger.info("KeyBERT model loaded.")
         except Exception as exc:

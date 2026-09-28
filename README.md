@@ -10,22 +10,16 @@ AI-powered incident intelligence platform for **3R classification (Runner, Repea
 3R Analyzer Intelligence/
 │
 ├── backend/                 # FastAPI backend
-│   ├── app/
-│   ├── alembic/
-│   ├── tests/
-│   ├── dataset/
-│   ├── uploads/
-│   ├── docs/
-│   └── requirements.txt
 │
 ├── frontend/                # React + Vite frontend
-│   ├── src/
-│   ├── public/
-│   └── package.json
+│
+├── docs/                    # Master Documentation (Start Here!)
 │
 ├── .gitignore
 └── README.md
 ```
+
+> **IMPORTANT**: For all product, architecture, configuration, and setup information, please see the [Master Documentation Index](docs/DOCUMENTATION_INDEX.md).
 
 ---
 

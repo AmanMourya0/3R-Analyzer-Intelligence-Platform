@@ -67,4 +67,7 @@ def stage_timer(stage_name: str, records_processed: Optional[int] = None):
             duration_seconds=duration_seconds,
             records_processed=records_processed
         )
-        PipelineProfiler.get_instance().add_timing(timing)
+        profiler = PipelineProfiler.get_instance()
+        profiler.add_timing(timing)
+        from app.utils.logger import logger
+        logger.info(f"job_id={getattr(profiler, 'current_job_id', 'unknown')} stage={stage_name} status=COMPLETED duration_ms={int(duration_seconds * 1000)} incident_count={records_processed or 0}")

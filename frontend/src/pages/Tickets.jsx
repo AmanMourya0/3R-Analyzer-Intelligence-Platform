@@ -7,7 +7,33 @@ import FilterBuilder from '../components/FilterBuilder'
 import SortBuilder from '../components/SortBuilder'
 import TicketDrawer from '../components/TicketDrawer'
 import ExportMenu from '../components/ExportMenu'
+import ColumnSelector from '../components/ColumnSelector'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+
+const ticketColumns = [
+  { key: 'incident_number', label: 'INCIDENT NUMBER', required: true, defaultVisible: true },
+  { key: 'caller', label: 'CALLER', defaultVisible: false },
+  { key: 'assignment_group', label: 'ASSIGNMENT GROUP', defaultVisible: false },
+  { key: 'created_date', label: 'CREATED', defaultVisible: true },
+  { key: 'short_description', label: 'SHORT DESCRIPTION', required: true, defaultVisible: true },
+  { key: 'description', label: 'DESCRIPTION', defaultVisible: true },
+  { key: 'category', label: 'CATEGORY', defaultVisible: false },
+  { key: 'three_r_category', label: '3R CATEGORY', defaultVisible: true },
+  { key: 'cluster_name', label: 'CLUSTER', defaultVisible: true },
+  { key: 'priority', label: 'PRIORITY', defaultVisible: true },
+  { key: 'state', label: 'STATE', defaultVisible: true },
+  { key: 'assigned_to', label: 'ASSIGNED TO', defaultVisible: false },
+  { key: 'resolved_by', label: 'RESOLVED BY', defaultVisible: false },
+  { key: 'resolved_date', label: 'RESOLVED', defaultVisible: false },
+  { key: 'kb_number', label: 'KB NUMBER', defaultVisible: false },
+  { key: 'it_batch_job', label: 'IT BATCH JOB', defaultVisible: false },
+  { key: 'reassignment_count', label: 'REASSIGNMENT COUNT', defaultVisible: false },
+  { key: 'configuration_item', label: 'CONFIGURATION ITEM', defaultVisible: true },
+  { key: 'offending_ci', label: 'OFFENDING CI', defaultVisible: false },
+  { key: 'offending_ci_category', label: 'OFFENDING CI CATEGORY', defaultVisible: false },
+  { key: 'cluster_id', label: 'CLUSTER ID', defaultVisible: false },
+  { key: 'problem_candidate', label: 'PROBLEM CANDIDATE', defaultVisible: false },
+]
 
 export default function Tickets() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -43,6 +69,8 @@ export default function Tickets() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selectedTicket, setSelectedTicket] = useState(null)
+  
+  const [visibleCols, setVisibleCols] = useState(ticketColumns.map(c => c.key))
 
   useEffect(() => {
     Promise.all([getCIList(), getGroupList()])
@@ -151,7 +179,14 @@ export default function Tickets() {
           <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>Incident Investigation Workspace</h1>
           <p style={{ fontSize: 13, color: 'var(--text2)', marginTop: 4 }}>Construct advanced queries, filter, and inspect ticket intelligence</p>
         </div>
-        <ExportMenu ast={ast} sorts={sorts} />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <ColumnSelector 
+            columns={ticketColumns} 
+            tableKey="tickets" 
+            onColumnChange={setVisibleCols} 
+          />
+          <ExportMenu ast={ast} sorts={sorts} />
+        </div>
       </div>
 
       <FilterBuilder 
@@ -212,8 +247,8 @@ export default function Tickets() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
-                  {['ID', 'Short Description', '3R Category', 'Cluster', 'CI', 'Priority', 'Status', 'Date'].map(h => (
-                    <th key={h} style={{ textAlign: 'left', padding: '10px 12px', color: 'var(--text2)', fontWeight: 500, fontSize: 11, whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
+                  {ticketColumns.filter(c => visibleCols.includes(c.key)).map(c => (
+                    <th key={c.key} style={{ textAlign: 'left', padding: '10px 12px', color: 'var(--text2)', fontWeight: 500, fontSize: 11, whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{c.label}</th>
                   ))}
                 </tr>
               </thead>
@@ -225,26 +260,67 @@ export default function Tickets() {
                     style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
                     onClick={() => setSelectedTicket(t)}
                   >
-                    <td style={td}>
-                      <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--accent-h)' }}>{t.ticket_id}</span>
-                    </td>
-                    <td style={{ ...td, maxWidth: 280, fontWeight: 500 }}>
-                      <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {t.short_description}
-                      </div>
-                    </td>
-                    <td style={td}><Badge color={t.three_r_category === 'RUNNER' ? 'var(--red)' : t.three_r_category === 'REPEATER' ? 'var(--amber)' : t.three_r_category === 'RARE' ? 'var(--purple)' : 'var(--text2)'}>{t.three_r_category || 'UNCLASSIFIED'}</Badge></td>
-                    <td style={{ ...td, maxWidth: 180 }}>
-                      <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        <Badge color={t.cluster_id === -1 ? 'var(--amber)' : 'var(--accent)'}>
-                          {t.cluster_name || (t.cluster_id === -1 ? 'Noise' : `Cluster ${t.cluster_id}`)}
-                        </Badge>
-                      </div>
-                    </td>
-                    <td style={{ ...td }}>{t.ci_name || '—'}</td>
-                    <td style={td}><PriorityBadge p={t.priority} /></td>
-                    <td style={td}>{t.status || '—'}</td>
-                    <td style={{ ...td, color: 'var(--text2)', whiteSpace: 'nowrap' }}>{t.created_date || '—'}</td>
+                    {ticketColumns.map(col => {
+                      if (!visibleCols.includes(col.key)) return null;
+
+                      switch (col.key) {
+                        case 'incident_number':
+                          return (
+                            <td key={col.key} style={td}>
+                              <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--accent-h)' }}>{t.incident_number || t.ticket_id}</span>
+                            </td>
+                          );
+                        case 'short_description':
+                          return (
+                            <td key={col.key} style={{ ...td, maxWidth: 280, fontWeight: 500 }}>
+                              <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {t.short_description}
+                              </div>
+                            </td>
+                          );
+                        case 'description':
+                          return (
+                            <td key={col.key} style={{ ...td, maxWidth: 300 }}>
+                              <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {t.description || '—'}
+                              </div>
+                            </td>
+                          );
+                        case 'three_r_category':
+                          return (
+                            <td key={col.key} style={td}>
+                              <Badge color={t.three_r_category === 'RUNNER' ? 'var(--red)' : t.three_r_category === 'REPEATER' ? 'var(--amber)' : t.three_r_category === 'RARE' ? 'var(--purple)' : 'var(--text2)'}>
+                                {t.three_r_category || 'UNCLASSIFIED'}
+                              </Badge>
+                            </td>
+                          );
+                        case 'cluster_name':
+                          return (
+                            <td key={col.key} style={{ ...td, maxWidth: 180 }}>
+                              <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                <Badge color={t.cluster_id === -1 ? 'var(--amber)' : 'var(--accent)'}>
+                                  {t.cluster_name || (t.cluster_id === -1 ? 'Noise' : `Cluster ${t.cluster_id}`)}
+                                </Badge>
+                              </div>
+                            </td>
+                          );
+                        case 'priority':
+                          return <td key={col.key} style={td}><PriorityBadge p={t.priority} /></td>;
+                        case 'state':
+                          return <td key={col.key} style={td}>{t.state || t.status || '—'}</td>;
+                        case 'created_date':
+                        case 'resolved_date':
+                          return <td key={col.key} style={{ ...td, color: 'var(--text2)', whiteSpace: 'nowrap' }}>{t[col.key] || '—'}</td>;
+                        case 'problem_candidate':
+                          return <td key={col.key} style={td}>{t.problem_candidate ? 'Yes' : 'No'}</td>;
+                        case 'configuration_item':
+                          return <td key={col.key} style={{ ...td }}>{t.configuration_item || t.ci_name || '—'}</td>;
+                        case 'assignment_group':
+                          return <td key={col.key} style={{ ...td }}>{t.assignment_group || t.assigned_group || '—'}</td>;
+                        default:
+                          return <td key={col.key} style={{ ...td }}>{t[col.key] !== null && t[col.key] !== undefined ? String(t[col.key]) : '—'}</td>;
+                      }
+                    })}
                   </tr>
                 ))}
               </tbody>
