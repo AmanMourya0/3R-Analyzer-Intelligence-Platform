@@ -38,16 +38,21 @@ const ticketColumns = [
 export default function Tickets() {
   const [searchParams, setSearchParams] = useSearchParams()
   
-  // Parse state from URL
-  const initialFilterStr = searchParams.get('filter') || ''
+  // Parse state from URL or Local Storage
+  const urlFilterStr = searchParams.get('filter')
+  const urlSortStr = searchParams.get('sort')
+  const initialPage = parseInt(searchParams.get('page') || '1', 10)
+
+  const FILTER_KEY = '3r_workspace_filter'
+  const SORT_KEY = '3r_workspace_sort'
+
+  const initialFilterStr = urlFilterStr !== null ? urlFilterStr : (localStorage.getItem(FILTER_KEY) || '')
   let initialAst = null
   try { if (initialFilterStr) initialAst = JSON.parse(decodeURIComponent(initialFilterStr)) } catch(e) {}
   
-  const initialSortStr = searchParams.get('sort') || ''
+  const initialSortStr = urlSortStr !== null ? urlSortStr : (localStorage.getItem(SORT_KEY) || '')
   let initialSorts = []
   try { if (initialSortStr) initialSorts = JSON.parse(decodeURIComponent(initialSortStr)) } catch(e) {}
-
-  const initialPage = parseInt(searchParams.get('page') || '1', 10)
   
   // Also keep legacy params in sync if they exist
   const legacyCluster = searchParams.get('cluster_id')
@@ -81,20 +86,26 @@ export default function Tickets() {
       .catch(() => {})
   }, [])
 
-  // Sync state to URL when filters change
+  // Sync state to URL and Local Storage when filters change
   const syncToUrl = useCallback((newAst, newSorts, newPage) => {
     const newParams = new URLSearchParams(searchParams)
     
     if (newAst && newAst.conditions && newAst.conditions.length > 0) {
-      newParams.set('filter', encodeURIComponent(JSON.stringify(newAst)))
+      const val = encodeURIComponent(JSON.stringify(newAst))
+      newParams.set('filter', val)
+      localStorage.setItem(FILTER_KEY, val)
     } else {
       newParams.delete('filter')
+      localStorage.removeItem(FILTER_KEY)
     }
     
     if (newSorts && newSorts.length > 0) {
-      newParams.set('sort', encodeURIComponent(JSON.stringify(newSorts)))
+      const val = encodeURIComponent(JSON.stringify(newSorts))
+      newParams.set('sort', val)
+      localStorage.setItem(SORT_KEY, val)
     } else {
       newParams.delete('sort')
+      localStorage.removeItem(SORT_KEY)
     }
     
     if (newPage > 1) {
@@ -105,6 +116,15 @@ export default function Tickets() {
     
     setSearchParams(newParams, { replace: true })
   }, [searchParams, setSearchParams])
+
+  // Initial sync from localStorage to URL if URL lacked params
+  useEffect(() => {
+    if (urlFilterStr === null && localStorage.getItem(FILTER_KEY)) {
+       syncToUrl(initialAst, initialSorts, initialPage)
+    } else if (urlSortStr === null && localStorage.getItem(SORT_KEY)) {
+       syncToUrl(initialAst, initialSorts, initialPage)
+    }
+  }, [])
 
   const loadData = useCallback(() => {
     setLoading(true)
@@ -151,6 +171,8 @@ export default function Tickets() {
     
     // clear everything from URL including legacy
     setSearchParams(new URLSearchParams(), { replace: true })
+    localStorage.removeItem(FILTER_KEY)
+    localStorage.removeItem(SORT_KEY)
     
     // We can't rely on loadData getting the new URL instantly in the same cycle if we use legacy,
     // so we force a reload or rely on the effect. We'll rely on handleRun() manually fetching but with empty.

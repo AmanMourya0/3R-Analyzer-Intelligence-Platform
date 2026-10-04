@@ -735,6 +735,7 @@ class FrontendCompatibilityService:
                     "message": progress_msg or "Processing completed.",
                     "stage": latest_job.progress_stage or "COMPLETED",
                     "percent": 100,
+                    "job_id": str(latest_job.id),
                     "result": {
                         "total_tickets": latest_job.total_incidents or 0,
                         "total_clusters": latest_job.total_clusters or 0,
@@ -746,6 +747,16 @@ class FrontendCompatibilityService:
                     "message": latest_job.error_message or "Processing failed.",
                     "stage": latest_job.progress_stage or "FAILED",
                     "percent": latest_job.progress_percent or 0,
+                    "job_id": str(latest_job.id),
+                    "result": None,
+                }
+            elif job_status == "CANCELLED":
+                return {
+                    "status": "cancelled",
+                    "message": "Processing cancelled by user.",
+                    "stage": "CANCELLED",
+                    "percent": latest_job.progress_percent or 0,
+                    "job_id": str(latest_job.id),
                     "result": None,
                 }
             elif job_status in ("PENDING", "RUNNING"):
@@ -754,6 +765,7 @@ class FrontendCompatibilityService:
                     "message": progress_msg or "Processing...",
                     "stage": latest_job.progress_stage or "PENDING",
                     "percent": latest_job.progress_percent or 0,
+                    "job_id": str(latest_job.id),
                     "result": None,
                 }
             else:
@@ -762,6 +774,7 @@ class FrontendCompatibilityService:
                     "message": "Ready.",
                     "stage": None,
                     "percent": 0,
+                    "job_id": str(latest_job.id),
                     "result": None,
                 }
         finally:

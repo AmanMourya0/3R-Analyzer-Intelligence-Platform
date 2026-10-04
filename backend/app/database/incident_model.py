@@ -32,7 +32,7 @@ class Incident(Base):
 
     subcategory = Column(String(100))
 
-    priority = Column(String(10))
+    priority = Column(String(50))
 
     state = Column(String(50))
 

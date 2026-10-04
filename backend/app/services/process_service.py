@@ -49,6 +49,10 @@ from app.constants import ASSIGNMENT_GROUP, CREATED_DATE
 from app.services.preprocessing import Preprocessor
 
 
+class JobCancelledException(Exception):
+    """Raised when the processing job has been cancelled by the user."""
+    pass
+
 class ProcessService:
 
     def __init__(
@@ -70,6 +74,12 @@ class ProcessService:
         message: str,
         percent: int
     ) -> None:
+        
+        # Check if job was cancelled by another transaction
+        session.refresh(job)
+        from app.constants import JOB_STATUS_CANCELLED
+        if job.status == JOB_STATUS_CANCELLED:
+            raise JobCancelledException("Job was cancelled by the user.")
 
         repository = JobRepository(
             session
@@ -413,6 +423,12 @@ class ProcessService:
                 job_id
             )
 
+        except JobCancelledException:
+
+            logger.info("Processing job %s was cancelled. Aborting pipeline safely.", job_id)
+            session.rollback()
+            # Do not mark as failed or completed. Just exit.
+            
         except Exception as ex:
 
             logger.exception(

@@ -184,3 +184,19 @@ class JobRepository(RepositoryInterface):
         job.error_message = error_message
         job.completed_at = datetime.utcnow()
         job.updated_at = datetime.utcnow()
+
+    def mark_cancelled(
+        self,
+        job: ProcessingJob,
+        message: str = "Processing cancelled by user."
+    ) -> None:
+        """
+        Mark a job as cancelled.
+        """
+        from app.constants import JOB_STATUS_CANCELLED
+        
+        job.status = JOB_STATUS_CANCELLED
+        job.message = message
+        job.error_message = message
+        job.completed_at = datetime.utcnow()
+        job.updated_at = datetime.utcnow()

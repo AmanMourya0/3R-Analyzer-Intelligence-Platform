@@ -93,3 +93,46 @@ def get_job(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(ex)
         )
+
+@router.post(
+    "/{job_id}/cancel",
+    response_model=JobResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Cancel Processing Job"
+)
+def cancel_job(
+    job_id: str,
+    service: JobService = Depends(get_job_service)
+) -> JobResponse:
+    """
+    Cancel a running or queued processing job.
+    """
+
+    try:
+        from app.constants import JOB_STATUS_COMPLETED, JOB_STATUS_FAILED
+        
+        # Check current status first to return proper 400 if it's already terminal and not CANCELLED
+        existing = service.get_job(job_id)
+        if existing is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Processing job not found."
+            )
+            
+        if existing.status in (JOB_STATUS_COMPLETED, JOB_STATUS_FAILED):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot cancel a completed or failed job."
+            )
+
+        job = service.cancel_job(job_id)
+        return job
+
+    except HTTPException:
+        raise
+    except Exception as ex:
+        logger.exception("Failed to cancel processing job %s.", job_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(ex)
+        )

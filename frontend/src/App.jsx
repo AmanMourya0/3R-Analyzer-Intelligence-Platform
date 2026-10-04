@@ -9,8 +9,8 @@ import AssignedGroup from './pages/AssignedGroup'
 import Home from './pages/Home'
 import Demo from './pages/Demo'
 import Jobs from './pages/Jobs'
-import { uploadCSV, getHealth, warmup, loadSample, getStatus } from './api'
-import { CheckCircle, AlertCircle, Info, X, Loader as SpinIcon } from 'lucide-react'
+import { uploadCSV, getHealth, warmup, loadSample, getStatus, cancelJob } from './api'
+import { CheckCircle, AlertCircle, Info, X, Loader as SpinIcon, XOctagon } from 'lucide-react'
 import { applyTheme, getSavedTheme } from './theme'
 
 // ── Processing steps overlay ──────────────────────────────────────────────────
@@ -28,8 +28,11 @@ const STEPS = [
   { id: 'PERSISTING_RESULTS', label: 'Saving Results' },
 ]
 
-function ProcessingScreen() {
-  const [jobState, setJobState] = useState({ stage: 'PENDING', message: 'Initializing...', percent: 0, status: 'processing' })
+function ProcessingScreen({ onExit }) {
+  const navigate = useNavigate()
+  const [jobState, setJobState] = useState({ stage: 'PENDING', message: 'Initializing...', percent: 0, status: 'processing', job_id: null })
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [isCancelling, setIsCancelling] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -37,8 +40,8 @@ function ProcessingScreen() {
       try {
         const s = await getStatus()
         if (!active) return
-        const { status, message, stage, percent } = s.data
-        if (status === 'processing' || status === 'done' || status === 'error') {
+        const { status, message, stage, percent, job_id } = s.data
+        if (['processing', 'done', 'error', 'cancelled'].includes(status)) {
            setJobState(prev => {
                // Protect against backwards regression in progress
                const newIdx = STEPS.findIndex(x => x.id === stage)
@@ -46,10 +49,10 @@ function ProcessingScreen() {
                if (newIdx !== -1 && oldIdx !== -1 && newIdx < oldIdx && status === 'processing') {
                    return prev // ignore stale out-of-order packet
                }
-               return { status, message, stage, percent }
+               return { status, message, stage, percent, job_id }
            })
         }
-        if (status === 'done' || status === 'error') {
+        if (status === 'done' || status === 'error' || status === 'cancelled') {
             clearInterval(iv)
         }
       } catch { /* ignore */ }
@@ -59,6 +62,20 @@ function ProcessingScreen() {
     const iv = setInterval(poll, 2000)
     return () => { active = false; clearInterval(iv) }
   }, [])
+
+  const handleCancel = async () => {
+    if (!jobState.job_id) return
+    setIsCancelling(true)
+    try {
+      await cancelJob(jobState.job_id)
+      setJobState(prev => ({ ...prev, status: 'cancelled', message: 'Processing cancelled by user.' }))
+    } catch (error) {
+      console.error('Failed to cancel job:', error)
+    } finally {
+      setIsCancelling(false)
+      setShowCancelModal(false)
+    }
+  }
 
   const currentIdx = STEPS.findIndex(s => s.id === jobState.stage)
   const safeIdx = currentIdx >= 0 ? currentIdx : (jobState.status === 'done' ? STEPS.length : 0)
@@ -74,11 +91,11 @@ function ProcessingScreen() {
         display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 40px)'
       }}>
         <div style={{ textAlign: 'center', marginBottom: 20 }}>
-          <div style={{ fontSize: 24, marginBottom: 8 }}>
-            {jobState.status === 'error' ? '❌' : jobState.status === 'done' ? '✅' : '⚙️'}
+          <div style={{ fontSize: 24, marginBottom: 8, display: 'flex', justifyContent: 'center' }}>
+            {jobState.status === 'error' ? '❌' : jobState.status === 'done' ? '✅' : jobState.status === 'cancelled' ? <XOctagon size={32} color="var(--orange)" /> : '⚙️'}
           </div>
           <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)', marginBottom: 4 }}>
-            {jobState.status === 'error' ? 'Processing Failed' : jobState.status === 'done' ? 'Processing Completed' : 'Processing Tickets…'}
+            {jobState.status === 'error' ? 'Processing Failed' : jobState.status === 'done' ? 'Processing Completed' : jobState.status === 'cancelled' ? 'Processing Cancelled' : 'Processing Tickets…'}
           </div>
           <div style={{ fontSize: 12, color: 'var(--text2)', minHeight: 18 }}>
             {jobState.message || 'AI is analysing your data.'}
@@ -102,7 +119,7 @@ function ProcessingScreen() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
           {STEPS.map((s, i) => {
-            const done   = jobState.status === 'done' || (safeIdx > i)
+            const done   = jobState.status === 'done' || (safeIdx > i) || (jobState.status === 'cancelled' && safeIdx > i)
             const active = jobState.status === 'processing' && safeIdx === i
             return (
               <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10, opacity: (done || active) ? 1 : 0.4 }}>
@@ -131,6 +148,77 @@ function ProcessingScreen() {
             )
           })}
         </div>
+        
+        {jobState.status === 'processing' && (
+          <div style={{ marginTop: 24, textAlign: 'center' }}>
+            <button 
+              onClick={() => setShowCancelModal(true)}
+              style={{
+                background: 'transparent', color: 'var(--text2)', border: '1px solid var(--border)',
+                padding: '6px 16px', borderRadius: 6, fontSize: 13, cursor: 'pointer', transition: 'all 0.2s',
+              }}
+              onMouseOver={e => { e.currentTarget.style.color = 'var(--red)'; e.currentTarget.style.borderColor = 'var(--red)' }}
+              onMouseOut={e => { e.currentTarget.style.color = 'var(--text2)'; e.currentTarget.style.borderColor = 'var(--border)' }}
+            >
+              Cancel Processing
+            </button>
+          </div>
+        )}
+
+        {jobState.status === 'cancelled' && (
+          <div style={{ marginTop: 24, textAlign: 'center' }}>
+            <button 
+              onClick={onExit}
+              style={{
+                background: 'var(--surface2)', color: 'var(--text)', border: 'none',
+                padding: '8px 24px', borderRadius: 6, fontSize: 14, cursor: 'pointer', fontWeight: 600
+              }}
+            >
+              Back to Home
+            </button>
+          </div>
+        )}
+
+        {showCancelModal && (
+          <div style={{
+            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100
+          }}>
+            <div style={{
+              background: 'var(--surface)', padding: 24, borderRadius: 12, width: 340,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.4)', border: '1px solid var(--border)',
+              display: 'flex', flexDirection: 'column', gap: 16
+            }}>
+              <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)' }}>Cancel processing?</div>
+              <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.5 }}>
+                The current dataset processing will be stopped. Any unsaved progress will be discarded.
+              </div>
+              <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+                <button 
+                  onClick={() => setShowCancelModal(false)}
+                  style={{
+                    flex: 1, padding: '8px', borderRadius: 6, background: 'var(--surface2)',
+                    color: 'var(--text)', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500
+                  }}
+                  disabled={isCancelling}
+                >
+                  Keep Processing
+                </button>
+                <button 
+                  onClick={handleCancel}
+                  style={{
+                    flex: 1, padding: '8px', borderRadius: 6, background: 'var(--red)',
+                    color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                    opacity: isCancelling ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
+                  }}
+                  disabled={isCancelling}
+                >
+                  {isCancelling ? <><SpinIcon size={14} style={{ animation: 'spin 1s linear infinite' }} /> Cancelling...</> : 'Confirm Cancellation'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -195,7 +283,7 @@ function PageHeader({ theme, setTheme }) {
 }
 
 // ── Main layout router ────────────────────────────────────────────────────────
-function AppInner({ onUpload, onSampleLoad, processing, toast, closeToast, dataLoaded, serverReady, theme, setTheme, refreshKey }) {
+function AppInner({ onUpload, onSampleLoad, processing, onCancelProcessing, toast, closeToast, dataLoaded, serverReady, theme, setTheme, refreshKey, onClearData }) {
   const navigate = useNavigate()
   const loc = useLocation()
   const isHome = loc.pathname === '/home' || loc.pathname === '/'
@@ -208,7 +296,7 @@ function AppInner({ onUpload, onSampleLoad, processing, toast, closeToast, dataL
   if (processing) {
     return (
       <>
-        <ProcessingScreen />
+        <ProcessingScreen onExit={onCancelProcessing} />
         <Toast toast={toast} onClose={closeToast} />
       </>
     )
@@ -231,7 +319,7 @@ function AppInner({ onUpload, onSampleLoad, processing, toast, closeToast, dataL
   // App pages — with sidebar
   return (
     <div style={{ display: 'flex', height: '100%' }}>
-      <Sidebar onUpload={onUpload} onSampleLoad={onSampleLoad} processing={processing} theme={theme} />
+      <Sidebar onUpload={onUpload} onSampleLoad={onSampleLoad} processing={processing} theme={theme} onClearData={onClearData} />
       <div style={{ marginLeft: 200, flex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         <PageHeader theme={theme} setTheme={setTheme} />
         <main style={{ flex: 1, padding: '20px 24px', overflowY: 'auto' }}>
@@ -325,6 +413,11 @@ export default function App() {
           clearInterval(iv)
           setProcessing(false)
           showToast('error', message || 'Processing failed.')
+        } else if (status === 'cancelled') {
+          clearInterval(iv)
+          // We DO NOT setProcessing(false) here, because we want the user
+          // to see the 'Cancelled' state on the ProcessingScreen and click "Back to Home".
+          // The onCancelProcessing callback will handle setProcessing(false) when they exit.
         }
       } catch { /* ignore */ }
     }, 3000)
@@ -342,12 +435,19 @@ export default function App() {
       </div>
     )
   }
+  const handleClearData = () => {
+    setDataLoaded(false)
+    setRefreshKey(k => k + 1)
+    showToast('success', 'All analytical data has been cleared.')
+  }
+
   return (
     <BrowserRouter>
       <AppInner
         onUpload={handleUpload}
         onSampleLoad={handleLoadSample}
         processing={processing}
+        onCancelProcessing={() => setProcessing(false)}
         toast={toast}
         closeToast={() => setToast(null)}
         dataLoaded={dataLoaded}
@@ -355,6 +455,7 @@ export default function App() {
         theme={theme}
         setTheme={setTheme}
         refreshKey={refreshKey}
+        onClearData={handleClearData}
       />
     </BrowserRouter>
   )

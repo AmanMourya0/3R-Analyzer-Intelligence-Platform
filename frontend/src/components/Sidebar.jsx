@@ -55,6 +55,7 @@ export default function Sidebar({
   processing,
   onSampleLoad,
   theme,
+  onClearData,
 }) {
 
   // Used for navigation
@@ -73,21 +74,21 @@ export default function Sidebar({
     }
 
     try {
-
       // Clear data from backend
       await clearData()
 
-      // After successful clear,
-      // navigate to Home page
+      // Call onClearData to update App state (toast and state clear)
+      if (onClearData) {
+        onClearData()
+      }
+      
+      // Navigate to Home page
       navigate('/home')
 
     } catch (error) {
-
       console.error('Failed to clear data:', error)
-
-      alert(
-        'Failed to clear data. Please try again.'
-      )
+      const errorMsg = error.response?.data?.detail || 'Failed to clear data. Please try again.'
+      alert(errorMsg)
     }
   }
 
@@ -406,7 +407,7 @@ export default function Sidebar({
 
           <Play size={13} />
 
-          Load Sample Data (600 tickets)
+          Load Sample Data (5,000 tickets)
 
         </button>
 
@@ -416,8 +417,8 @@ export default function Sidebar({
         ================================================== */}
 
         <a
-          href="/sample_tickets.csv"
-          download="sample_tickets.csv"
+          href="/api/download-sample"
+          download
 
           style={{
             display: 'flex',

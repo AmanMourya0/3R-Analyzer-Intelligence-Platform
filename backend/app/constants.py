@@ -60,12 +60,15 @@ NOISE_CLUSTER = -1
 # ==========================================================
 
 JOB_STATUS_PENDING = "PENDING"
+JOB_STATUS_QUEUED = "QUEUED"  # Some places might use queued
 
 JOB_STATUS_RUNNING = "RUNNING"
 
 JOB_STATUS_COMPLETED = "COMPLETED"
 
 JOB_STATUS_FAILED = "FAILED"
+
+JOB_STATUS_CANCELLED = "CANCELLED"
 
 # ==========================================================
 # 3R Classification

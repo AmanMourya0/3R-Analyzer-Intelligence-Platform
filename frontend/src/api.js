@@ -28,5 +28,6 @@ export const getHealth     = ()            => api.get('/health',    { timeout: 1
 export const warmup        = ()            => api.get('/warmup',    { timeout: 120000 })
 export const getJobs       = (params)      => api.get('/jobs',      { params })
 export const getJob        = (id)          => api.get(`/jobs/${id}`)
+export const cancelJob     = (id)          => api.post(`/jobs/${id}/cancel`)
 export const getServiceNowGroups = ()      => api.get('/servicenow-groups')
 export const importServiceNow    = (params) => api.post('/servicenow-import', {}, { params })

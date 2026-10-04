@@ -41,6 +41,16 @@ SAMPLE_DATASET_PATH = "dataset/Dummy_Incident_Dataset_V2_5000.xlsx"
 # Singleton compatibility service (stateless, thread-safe)
 _compat_service = FrontendCompatibilityService()
 
+from app.database.database import SessionLocal
+from sqlalchemy.orm import Session
+
+def get_session():
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
+
 
 # ==============================================================
 # HEALTH
@@ -151,6 +161,25 @@ def api_load_sample(
         )
 
     return {"status": "queued", "message": "Sample data processing started.", "job_id": str(job.id)}
+
+@router.get("/download-sample", summary="Download canonical sample dataset")
+def api_download_sample():
+    """
+    Download the bundled production sample dataset.
+    """
+    sample_path = Path(SAMPLE_DATASET_PATH)
+    if not sample_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Sample dataset not found at {SAMPLE_DATASET_PATH}",
+        )
+    
+    from fastapi.responses import FileResponse
+    return FileResponse(
+        path=str(sample_path),
+        filename=sample_path.name,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 
 # ==============================================================
@@ -385,16 +414,47 @@ def api_servicenow_import(
 # CLEAR — gracefully unsupported in production
 # ==============================================================
 
-@router.delete("/clear", summary="Clear data (not supported in production)")
-def api_clear():
+@router.delete("/clear", summary="Clear analytical data")
+def api_clear(
+    session: Session = Depends(get_session)
+):
     """
-    The production backend uses PostgreSQL — data is persistent.
-    Clearing all data via API is not supported for safety.
+    Clear current analytical dataset (clusters, incidents, recurrence results).
+    Does NOT clear Job History (ProcessingJobs).
+    Cannot clear if a job is currently processing.
     """
-    raise HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        detail="Data clearing is not supported in production. Use the database directly.",
-    )
+    from app.constants import JOB_STATUS_PENDING, JOB_STATUS_RUNNING
+    from app.database.processing_job_model import ProcessingJob
+    from app.database.incident_model import Incident
+    from app.database.cluster_model import Cluster
+    from app.database.recurrence_model import Recurrence
+
+    try:
+        active_jobs = session.query(ProcessingJob).filter(
+            ProcessingJob.status.in_([JOB_STATUS_PENDING, JOB_STATUS_RUNNING])
+        ).count()
+        if active_jobs > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot clear data while processing is active."
+            )
+
+        session.query(Recurrence).delete()
+        session.query(Incident).delete()
+        session.query(Cluster).delete()
+        
+        session.commit()
+        return {"status": "success", "message": "All analytical data has been cleared."}
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        session.rollback()
+        logger.exception("Failed to clear analytical data.")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to clear data: {exc}",
+        )
 
 # ==============================================================
 # PREDICT (Phase 10 - deferred)
@@ -468,4 +528,40 @@ def api_job_detail(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
+        )
+
+@router.post("/jobs/{job_id}/cancel", summary="Cancel a processing job")
+def api_cancel_job(
+    job_id: str = FastAPIPath(...),
+    job_service: JobService = Depends(get_job_service)
+):
+    """
+    Cancel a running or queued processing job.
+    """
+    try:
+        from app.constants import JOB_STATUS_COMPLETED, JOB_STATUS_FAILED
+        
+        existing = job_service.get_job(job_id)
+        if existing is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Processing job not found."
+            )
+            
+        if existing.status in (JOB_STATUS_COMPLETED, JOB_STATUS_FAILED):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot cancel a completed or failed job."
+            )
+
+        job = job_service.cancel_job(job_id)
+        return job
+
+    except HTTPException:
+        raise
+    except Exception as ex:
+        logger.exception("Failed to cancel processing job %s.", job_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(ex)
         )

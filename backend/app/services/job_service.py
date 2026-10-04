@@ -187,3 +187,37 @@ class JobService:
         finally:
 
             session.close()
+
+    def cancel_job(
+        self,
+        job_id: str
+    ) -> Optional[ProcessingJob]:
+        """
+        Cancel a running or queued job safely.
+        """
+        session: Session = SessionLocal()
+        from app.constants import JOB_STATUS_COMPLETED, JOB_STATUS_FAILED, JOB_STATUS_CANCELLED
+
+        try:
+            repo = JobRepository(session)
+            job = repo.get_by_id(job_id)
+            if job is None:
+                return None
+
+            if job.status in (JOB_STATUS_COMPLETED, JOB_STATUS_FAILED, JOB_STATUS_CANCELLED):
+                # Job is in terminal state, ignore cancellation request idempotently
+                return job
+
+            repo.mark_cancelled(job)
+            session.commit()
+            session.refresh(job)
+            
+            # Re-fetch after detaching so we can return it safely
+            session.expunge(job)
+            return job
+        except Exception:
+            session.rollback()
+            logger.exception("Unable to cancel processing job %s.", job_id)
+            raise
+        finally:
+            session.close()

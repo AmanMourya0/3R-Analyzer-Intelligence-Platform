@@ -41,7 +41,7 @@ def _get_kw_model():
         try:
             from keybert import KeyBERT
             from sentence_transformers import SentenceTransformer
-            logger.info("Loading KeyBERT model: %s", EMBEDDING_MODEL)
+            logger.info("Loading KeyBERT model: %s", settings.EMBEDDING_MODEL)
             st_model = SentenceTransformer(settings.EMBEDDING_MODEL)
             _kw_model = KeyBERT(model=st_model)
             logger.info("KeyBERT model loaded.")
