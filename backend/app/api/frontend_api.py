@@ -222,6 +222,32 @@ def api_clusters():
     return _compat_service.get_clusters()
 
 
+# ==============================================================
+# AI ENRICHMENT
+# ==============================================================
+
+@router.post("/clusters/enrich-names", summary="Start AI cluster name enrichment")
+def api_enrich_cluster_names(
+    job_service: JobService = Depends(get_job_service)
+):
+    """Start an asynchronous AI cluster name enrichment job."""
+    try:
+        job = job_service.create_enrichment_job()
+        return {"status": "queued", "message": "AI cluster naming enrichment started.", "job_id": str(job.id)}
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.exception("Failed to start enrichment job.")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+@router.get("/clusters/enrichment-status", summary="Get AI enrichment status")
+def api_enrichment_status(
+    job_service: JobService = Depends(get_job_service)
+):
+    """Get the status of the AI cluster naming enrichment."""
+    return job_service.get_enrichment_status()
+
+
 @router.get("/clusters/{cluster_id}", summary="Single cluster detail")
 def api_cluster_detail(cluster_id: int):
     """

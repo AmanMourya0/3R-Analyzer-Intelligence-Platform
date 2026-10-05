@@ -256,15 +256,7 @@ class TestFrontendCompatibilityService:
 
 class TestClusterNamer:
 
-    def test_extract_cluster_name_basic(self):
-        from app.clustering.cluster_namer import extract_cluster_name
-        result = extract_cluster_name(["vpn login failed", "vpn auth error"])
-        assert isinstance(result, str)
-        assert result.endswith("Issues")
 
-    def test_extract_cluster_name_empty(self):
-        from app.clustering.cluster_namer import extract_cluster_name
-        assert extract_cluster_name([]) == "Unknown Issues"
 
     def test_format_cluster_name_acronym(self):
         from app.clustering.cluster_namer import _format_cluster_name

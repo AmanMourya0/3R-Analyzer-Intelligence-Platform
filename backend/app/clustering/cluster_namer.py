@@ -3,12 +3,9 @@ from collections import Counter
 from typing import Dict, List
 
 from app.models.cluster_summary import ClusterSummary
-from app.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
-KEYBERT_TOP_N: int = 3
-KEYBERT_DIVERSITY: float = 0.5
 CLUSTER_NAME_CAP: int = 50
 
 _UPPERCASE_ACRONYMS = {
@@ -32,23 +29,6 @@ _STOP_WORDS = {
     "under", "until", "up", "while",
 }
 
-_kw_model = None
-
-
-def _get_kw_model():
-    global _kw_model
-    if _kw_model is None:
-        try:
-            from keybert import KeyBERT
-            from sentence_transformers import SentenceTransformer
-            logger.info("Loading KeyBERT model: %s", settings.EMBEDDING_MODEL)
-            st_model = SentenceTransformer(settings.EMBEDDING_MODEL)
-            _kw_model = KeyBERT(model=st_model)
-            logger.info("KeyBERT model loaded.")
-        except Exception as exc:
-            logger.warning("KeyBERT unavailable (%s). Using frequency fallback.", exc)
-    return _kw_model
-
 
 def _format_cluster_name(phrase: str) -> str:
     words = phrase.strip().split()
@@ -70,32 +50,15 @@ def _frequency_name(texts: List[str]) -> str:
     phrase = " ".join(top) if top else "General"
     return _format_cluster_name(phrase)
 
-def extract_cluster_name(texts: List[str]) -> str:
-    if not texts:
-        return "Unknown Issues"
-    sample = texts[:CLUSTER_NAME_CAP]
-    combined = " ".join(sample)
-    kw = _get_kw_model()
-    if kw is not None:
-        try:
-            keywords = kw.extract_keywords(
-                combined,
-                keyphrase_ngram_range=(1, 3),
-                stop_words="english",
-                use_mmr=True,
-                diversity=KEYBERT_DIVERSITY,
-                top_n=KEYBERT_TOP_N,
-            )
-            if keywords:
-                return _format_cluster_name(keywords[0][0])
-        except Exception as exc:
-            logger.warning("KeyBERT extraction failed: %s", exc)
-    return _frequency_name(sample)
-
 
 class ClusterNamer:
     """
-    Assigns human-readable cluster names to ClusterSummary objects.
+    Assigns human-readable cluster names using fast, deterministic
+    token-frequency analysis.
+
+    This is the DEFAULT naming strategy used in the core 3R processing
+    pipeline. It does NOT use KeyBERT or any ML model.
+
     Placed after ClusterAnalyzer, before RecurrenceDetector.
     """
 
@@ -111,12 +74,9 @@ class ClusterNamer:
                 continue
             cluster_texts.setdefault(label, []).append(text)
 
-        logger.info("Naming %d clusters...", len(cluster_summaries))
+        logger.info("Naming %d clusters (standard/frequency)...", len(cluster_summaries))
 
-        docs_to_extract = []
-        cluster_indices = []
-
-        for i, summary in enumerate(cluster_summaries):
+        for summary in cluster_summaries:
             cid = summary.cluster_id
             texts = cluster_texts.get(cid, [])
             if not texts:
@@ -124,18 +84,127 @@ class ClusterNamer:
                 continue
 
             sample = texts[:CLUSTER_NAME_CAP]
+            name = _frequency_name(sample)
+            object.__setattr__(summary, "cluster_name", name)
+
+        logger.info("Standard cluster naming completed.")
+        return cluster_summaries
+
+
+# ======================================================================
+# AI CLUSTER NAMER — Optional KeyBERT enrichment
+# ======================================================================
+# KeyBERT is lazily imported ONLY when AIClusterNamer is instantiated.
+# This class is NEVER used in the core processing pipeline.
+# ======================================================================
+
+KEYBERT_TOP_N: int = 3
+KEYBERT_DIVERSITY: float = 0.5
+
+
+class AIClusterNamer:
+    """
+    AI-powered cluster naming using KeyBERT.
+
+    This class is used ONLY for optional enrichment AFTER core pipeline
+    processing is complete. It is never part of the critical path.
+
+    KeyBERT is lazily loaded on first use to avoid import cost at startup.
+    """
+
+    def __init__(self):
+        self._kw_model = None
+        self._available = None  # None = unknown, True/False after check
+
+    def _get_kw_model(self):
+        if self._kw_model is not None:
+            return self._kw_model
+
+        try:
+            from keybert import KeyBERT
+            from sentence_transformers import SentenceTransformer
+            from app.config.settings import settings
+
+            logger.info("Loading KeyBERT model: %s", settings.EMBEDDING_MODEL)
+            st_model = SentenceTransformer(settings.EMBEDDING_MODEL)
+            self._kw_model = KeyBERT(model=st_model)
+            self._available = True
+            logger.info("KeyBERT model loaded for AI enrichment.")
+        except Exception as exc:
+            self._available = False
+            logger.error("KeyBERT unavailable for AI enrichment: %s", exc)
+            raise RuntimeError(
+                f"AI cluster naming dependency (KeyBERT) is unavailable: {exc}"
+            ) from exc
+
+        return self._kw_model
+
+    @property
+    def is_available(self) -> bool:
+        """Check if KeyBERT can be loaded without actually loading it."""
+        if self._available is not None:
+            return self._available
+        try:
+            import keybert  # noqa: F401
+            self._available = True
+        except ImportError:
+            self._available = False
+        return self._available
+
+    def generate_ai_names(
+        self,
+        cluster_texts: Dict[int, List[str]],
+        cancelled_check=None,
+    ) -> Dict[int, str]:
+        """
+        Generate AI-powered cluster names for the given cluster texts.
+
+        Parameters
+        ----------
+        cluster_texts : Dict[int, List[str]]
+            Mapping of cluster_id -> list of combined_text strings.
+        cancelled_check : callable, optional
+            A callable that returns True if the job has been cancelled.
+            Checked between clusters for cooperative cancellation.
+
+        Returns
+        -------
+        Dict[int, str]
+            Mapping of cluster_id -> AI-generated cluster name.
+
+        Raises
+        ------
+        RuntimeError
+            If KeyBERT is not available.
+        """
+        kw = self._get_kw_model()
+
+        docs_to_extract = []
+        cluster_ids = []
+
+        for cid, texts in cluster_texts.items():
+            if not texts:
+                continue
+            sample = texts[:CLUSTER_NAME_CAP]
             combined = " ".join(sample)
             docs_to_extract.append(combined)
-            cluster_indices.append((i, sample))
+            cluster_ids.append(cid)
 
-        kw = _get_kw_model()
+        if not docs_to_extract:
+            return {}
 
-        if kw is not None and docs_to_extract:
+        logger.info("AI batch extracting keywords for %d clusters (cooperatively)...", len(docs_to_extract))
+
+        result = {}
+        for cid, doc in zip(cluster_ids, docs_to_extract):
+            # Check cancellation between clusters
+            if cancelled_check and cancelled_check():
+                logger.info("AI naming cancelled after processing %d clusters.", len(result))
+                return result
+
             try:
-                logger.info("Batch extracting keywords for %d clusters...", len(docs_to_extract))
-                # extract_keywords on a list returns a list of lists of (keyword, score) tuples
-                all_keywords = kw.extract_keywords(
-                    docs_to_extract,
+                keywords = kw.extract_keywords(
+                    doc,
                     keyphrase_ngram_range=(1, 3),
                     stop_words="english",
                     use_mmr=True,
@@ -143,29 +212,19 @@ class ClusterNamer:
                     top_n=KEYBERT_TOP_N,
                 )
                 
-                # Check if it returned a single list instead of a list of lists (if only 1 doc)
-                if len(docs_to_extract) == 1 and all_keywords and isinstance(all_keywords[0], tuple):
-                    all_keywords = [all_keywords]
+                if keywords and isinstance(keywords, list) and len(keywords) > 0 and isinstance(keywords[0], tuple):
+                    name = _format_cluster_name(keywords[0][0])
+                else:
+                    # Fallback to frequency for this cluster
+                    texts = cluster_texts.get(cid, [])
+                    name = _frequency_name(texts[:CLUSTER_NAME_CAP])
 
-                for idx_pair, keywords in zip(cluster_indices, all_keywords):
-                    i, sample = idx_pair
-                    summary = cluster_summaries[i]
-                    if keywords and isinstance(keywords, list) and len(keywords) > 0 and isinstance(keywords[0], tuple):
-                        name = _format_cluster_name(keywords[0][0])
-                        object.__setattr__(summary, "cluster_name", name)
-                        logger.debug("Cluster %d -> %s", summary.cluster_id, name)
-                    else:
-                        name = _frequency_name(sample)
-                        object.__setattr__(summary, "cluster_name", name)
-            except Exception as exc:
-                logger.warning("KeyBERT batched extraction failed: %s", exc)
-                for i, sample in cluster_indices:
-                    name = _frequency_name(sample)
-                    object.__setattr__(cluster_summaries[i], "cluster_name", name)
-        else:
-            for i, sample in cluster_indices:
-                name = _frequency_name(sample)
-                object.__setattr__(cluster_summaries[i], "cluster_name", name)
+                result[cid] = name
 
-        logger.info("Cluster naming completed.")
-        return cluster_summaries
+            except Exception as e:
+                logger.warning("Error generating AI name for cluster %s: %s", cid, e)
+                texts = cluster_texts.get(cid, [])
+                result[cid] = _frequency_name(texts[:CLUSTER_NAME_CAP])
+
+        logger.info("AI cluster naming completed for %d clusters.", len(result))
+        return result

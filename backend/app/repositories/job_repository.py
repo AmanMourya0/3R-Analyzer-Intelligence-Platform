@@ -200,3 +200,40 @@ class JobRepository(RepositoryInterface):
         job.error_message = message
         job.completed_at = datetime.utcnow()
         job.updated_at = datetime.utcnow()
+
+    # ==================================================================
+    # AI Enrichment Job Operations
+    # ==================================================================
+
+    def has_running_enrichment_job(self) -> bool:
+        """Check if an AI cluster naming enrichment job is currently running."""
+        from app.constants import JOB_TYPE_AI_CLUSTER_NAMING
+        return (
+            self.session.query(ProcessingJob)
+            .filter(
+                ProcessingJob.status == JOB_STATUS_RUNNING,
+                ProcessingJob.job_type == JOB_TYPE_AI_CLUSTER_NAMING,
+            )
+            .count() > 0
+        )
+
+    def create_enrichment_job(self) -> ProcessingJob:
+        """Create a pending AI cluster naming enrichment job."""
+        from app.constants import JOB_TYPE_AI_CLUSTER_NAMING
+
+        job = ProcessingJob(
+            dataset_path="",
+            source_type="enrichment",
+            job_type=JOB_TYPE_AI_CLUSTER_NAMING,
+            status=JOB_STATUS_PENDING,
+            message="AI cluster naming enrichment queued.",
+            progress_stage="QUEUED",
+            progress_message="AI cluster naming enrichment queued.",
+            progress_percent=0,
+        )
+
+        self.save(job)
+        self.session.flush()
+
+        return job
+

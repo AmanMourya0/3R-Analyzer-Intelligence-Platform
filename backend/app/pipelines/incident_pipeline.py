@@ -42,6 +42,7 @@ from app.models.pipeline_result import PipelineResult
 from app.services.performance.stage_timer import stage_timer
 
 from app.utils.logger import logger
+from app.core.exceptions import JobCancelledException
 
 
 class IncidentPipeline:
@@ -78,7 +79,8 @@ class IncidentPipeline:
         dataframe: Optional[pd.DataFrame] = None,
         progress_callback: Optional[
             Callable[[str, str, int], None]
-        ] = None
+        ] = None,
+        check_cancellation: Optional[Callable[[], None]] = None
     ) -> PipelineResult:
         """
         Execute the complete pipeline.
@@ -167,6 +169,9 @@ class IncidentPipeline:
             # Step 1 : Clean Dataset
             # -------------------------------------------------
 
+            if check_cancellation:
+                check_cancellation()
+
             report_progress(
                 "PREPROCESSING",
                 "Preparing and cleaning incident data...",
@@ -186,6 +191,9 @@ class IncidentPipeline:
             # Step 2 : Generate Embeddings
             # -------------------------------------------------
 
+            if check_cancellation:
+                check_cancellation()
+
             report_progress(
                 "GENERATING_EMBEDDINGS",
                 "Generating semantic understanding of incidents...",
@@ -196,7 +204,8 @@ class IncidentPipeline:
                 embeddings = (
                     self.embedding_generator
                     .generate_embeddings(
-                        df[COMBINED_TEXT].tolist()
+                        df[COMBINED_TEXT].tolist(),
+                        check_cancellation=check_cancellation
                     )
                 )
 
@@ -221,6 +230,9 @@ class IncidentPipeline:
             # Step 4 : Generate Semantic Clusters
             # -------------------------------------------------
 
+            if check_cancellation:
+                check_cancellation()
+
             report_progress(
                 "CLUSTERING",
                 "Detecting semantically similar incident groups...",
@@ -242,6 +254,9 @@ class IncidentPipeline:
             # Step 5 : Generate Cluster Summaries
             # -------------------------------------------------
 
+            if check_cancellation:
+                check_cancellation()
+
             report_progress(
                 "CLUSTER_ANALYSIS",
                 "Analyzing incident clusters and patterns...",
@@ -260,14 +275,21 @@ class IncidentPipeline:
             )
 
             # -------------------------------------------------
-            # Step 5.5 : Generate Cluster Names (KeyBERT)
+            # Step 5.5 : Generate Cluster Names (Standard)
+            # -------------------------------------------------
+            # Uses fast, deterministic token-frequency naming.
+            # KeyBERT is NOT invoked here — it is an optional
+            # post-pipeline enrichment operation.
             # -------------------------------------------------
 
             report_progress(
                 "NAMING_CLUSTERS",
-                "Generating human-readable cluster names...",
+                "Generating cluster names...",
                 78
             )
+
+            if check_cancellation:
+                check_cancellation()
 
             if hasattr(self, "cluster_namer") and self.cluster_namer is not None:
                 with stage_timer('NAMING_CLUSTERS', len(cluster_summaries)):
@@ -284,6 +306,9 @@ class IncidentPipeline:
             # -------------------------------------------------
             # Step 6 : Generate Recurrence Results
             # -------------------------------------------------
+
+            if check_cancellation:
+                check_cancellation()
 
             report_progress(
                 "RECURRENCE_ANALYSIS",
@@ -305,6 +330,9 @@ class IncidentPipeline:
             # -------------------------------------------------
             # Step 7 : Generate 3R Classification
             # -------------------------------------------------
+
+            if check_cancellation:
+                check_cancellation()
 
             report_progress(
                 "THREE_R_CLASSIFICATION",
@@ -330,11 +358,8 @@ class IncidentPipeline:
             # Pipeline Complete
             # -------------------------------------------------
 
-            report_progress(
-                "PROCESSING_COMPLETE",
-                "AI analysis completed. Preparing results...",
-                95
-            )
+            if check_cancellation:
+                check_cancellation()
 
             logger.info(
                 "Pipeline completed successfully."
@@ -346,6 +371,14 @@ class IncidentPipeline:
                 recurrence_results=recurrence_results,
                 three_r_summary=three_r_summary
             )
+
+        except JobCancelledException:
+
+            logger.info(
+                "Incident pipeline execution cancelled."
+            )
+
+            raise
 
         except Exception:
 

@@ -35,3 +35,8 @@ class Cluster(Base):
     three_r_category = Column(String(20), nullable=True)
 
     three_r_reason = Column(String(300), nullable=True)
+
+    # AI enrichment fields — populated by optional KeyBERT enrichment
+    ai_cluster_name = Column(String(300), nullable=True)
+
+    naming_status = Column(String(20), nullable=False, default="STANDARD")

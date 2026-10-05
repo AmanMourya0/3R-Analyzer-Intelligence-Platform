@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
 import { Ticket, Layers, TrendingUp, AlertTriangle, Cpu, Users, Activity } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { getDashboard } from '../api'
+import { getDashboard, enrichClusterNames, getEnrichmentStatus } from '../api'
 import Card from '../components/Card'
 import StatCard from '../components/StatCard'
 import Badge from '../components/Badge'
@@ -15,7 +15,33 @@ export default function Dashboard() {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
   const [flaggedClusters, setFlaggedClusters] = useState([])
+  const [enrichment, setEnrichment] = useState({ status: 'STANDARD', percent: 0 })
   const navigate = useNavigate()
+
+  const pollEnrichment = () => {
+    getEnrichmentStatus().then(res => {
+      const { naming_status, job } = res.data;
+      setEnrichment(prev => {
+        if (prev.status === 'AI_ENRICHMENT_RUNNING' && naming_status === 'AI_ENRICHED') {
+          getDashboard().then(r => setData(r.data));
+        }
+        return { status: naming_status, percent: job?.progress_percent || 0 };
+      });
+      if (naming_status === 'AI_ENRICHMENT_RUNNING') {
+        setTimeout(pollEnrichment, 3000);
+      }
+    }).catch(() => {});
+  };
+
+  const handleEnrich = async () => {
+    try {
+      await enrichClusterNames();
+      setEnrichment({ status: 'AI_ENRICHMENT_RUNNING', percent: 0 });
+      setTimeout(pollEnrichment, 1000);
+    } catch (e) {
+      alert("Failed to start enrichment: " + (e.response?.data?.detail || e.message));
+    }
+  };
 
   useEffect(() => {
     getDashboard()
@@ -24,6 +50,7 @@ export default function Dashboard() {
         const msg = e.response?.data?.detail || 'No data loaded yet. Upload a CSV to get started.'
         setError(msg)
       })
+      .finally(() => pollEnrichment())
   }, [])
 
   // Read flagged clusters from localStorage on every render
@@ -69,7 +96,23 @@ export default function Dashboard() {
           <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>Executive Intelligence</h1>
           <p style={{ fontSize: 13, color: 'var(--text2)', marginTop: 4 }}>Leadership-ready analytics and pattern insights</p>
         </div>
-        <ExportMenu />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          {enrichment.status === 'AI_ENRICHMENT_RUNNING' ? (
+            <div style={{ fontSize: 13, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span className="spinner-small" style={{ width: 12, height: 12, border: '2px solid var(--accent)', borderRightColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+              AI Naming... {enrichment.percent}%
+            </div>
+          ) : enrichment.status === 'AI_ENRICHED' ? (
+            <div style={{ fontSize: 13, color: 'var(--green)', fontWeight: 500 }}>
+              ✓ AI Enriched
+            </div>
+          ) : (
+            <button onClick={handleEnrich} style={{ background: 'var(--accent)', color: 'white', border: 'none', padding: '6px 12px', borderRadius: 6, fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>
+              Enhance Cluster Names with AI
+            </button>
+          )}
+          <ExportMenu />
+        </div>
       </div>
 
       <SectionHeader title="3R INTELLIGENCE SUMMARY" />

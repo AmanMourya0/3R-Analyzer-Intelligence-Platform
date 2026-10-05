@@ -36,6 +36,11 @@ class ProcessingJob(Base):
 
     source_type = Column(String(30), nullable=False, default="upload")
 
+    job_type = Column(
+        String(30),
+        nullable=False,
+        default="PROCESSING"
+    )
     assignment_groups = Column(Text, nullable=True)
 
     start_date = Column(DateTime, nullable=True)

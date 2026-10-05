@@ -15,7 +15,7 @@ from app.clustering.three_r_classifier import ThreeRClassifier
 
 class FakeEmbeddingGenerator:
 
-    def generate_embeddings(self, texts):
+    def generate_embeddings(self, texts, **kwargs):
         return np.array(
             [
                 [1.0, 0.0],

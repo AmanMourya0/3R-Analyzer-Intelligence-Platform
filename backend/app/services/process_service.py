@@ -49,9 +49,7 @@ from app.constants import ASSIGNMENT_GROUP, CREATED_DATE
 from app.services.preprocessing import Preprocessor
 
 
-class JobCancelledException(Exception):
-    """Raised when the processing job has been cancelled by the user."""
-    pass
+from app.core.exceptions import JobCancelledException
 
 class ProcessService:
 
@@ -77,13 +75,17 @@ class ProcessService:
         
         # Check if job was cancelled by another transaction
         session.refresh(job)
-        from app.constants import JOB_STATUS_CANCELLED
+        from app.constants import JOB_STATUS_CANCELLED, JOB_STATUS_COMPLETED, JOB_STATUS_FAILED
         if job.status == JOB_STATUS_CANCELLED:
             raise JobCancelledException("Job was cancelled by the user.")
 
         repository = JobRepository(
             session
         )
+
+        current_percent = job.progress_percent or 0
+        if stage not in ("COMPLETED", "FAILED", "CANCELLED"):
+            percent = max(current_percent, percent)
 
         repository.update_progress(
             job,
@@ -206,6 +208,13 @@ class ProcessService:
                 percent
             )
 
+        def check_cancellation() -> None:
+            session.refresh(job)
+            from app.constants import JOB_STATUS_CANCELLED
+            if job.status == JOB_STATUS_CANCELLED:
+                reason = "SERVER_SHUTDOWN" if job.message and "shutdown" in job.message.lower() else "USER_REQUESTED"
+                raise JobCancelledException("Job was cancelled by the user.", reason=reason)
+
         # --------------------------------------------------
         # AI Pipeline
         # --------------------------------------------------
@@ -215,7 +224,8 @@ class ProcessService:
 
         result = self.pipeline.run(
             dataframe,
-            progress_callback=progress_callback
+            progress_callback=progress_callback,
+            check_cancellation=check_cancellation
         )
 
         # --------------------------------------------------
@@ -243,7 +253,7 @@ class ProcessService:
             job,
             "PERSISTING_RESULTS",
             "Saving AI analysis results...",
-            92
+            95
         )
 
         logger.info(
@@ -423,9 +433,9 @@ class ProcessService:
                 job_id
             )
 
-        except JobCancelledException:
+        except JobCancelledException as e:
 
-            logger.info("Processing job %s was cancelled. Aborting pipeline safely.", job_id)
+            logger.info("Processing job %s was cancelled (Reason: %s). Aborting pipeline safely.", job_id, e.reason)
             session.rollback()
             # Do not mark as failed or completed. Just exit.
             

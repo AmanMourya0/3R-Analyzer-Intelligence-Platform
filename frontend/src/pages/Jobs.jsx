@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { getJobs, getJob } from '../api'
+import { getJobs, getJob, cancelJob } from '../api'
 import Card from '../components/Card'
 import Badge from '../components/Badge'
 import ColumnSelector from '../components/ColumnSelector'
@@ -204,25 +204,55 @@ function JobDetailPanel({ jobId, onClose, onViewResults }) {
    const [job, setJob] = useState(null)
    const [loading, setLoading] = useState(true)
    const [error, setError] = useState('')
+   const [showCancelModal, setShowCancelModal] = useState(false)
+   const [isCancelling, setIsCancelling] = useState(false)
 
-   useEffect(() => {
-      let active = true
-      setLoading(true)
-      setError('')
+   const fetchJob = (isActive = true) => {
       getJob(jobId).then(res => {
-         if (active) {
+         if (isActive) {
             setJob(res.data)
             setLoading(false)
          }
       }).catch(err => {
-         if (active) {
+         if (isActive) {
             console.error(err)
             setError('Unable to load job details.\nThe job may no longer exist or the server may be unavailable.')
             setLoading(false)
          }
       })
-      return () => { active = false }
-   }, [jobId])
+   }
+
+   useEffect(() => {
+      let active = true
+      setLoading(true)
+      setError('')
+      fetchJob(active)
+
+      const iv = setInterval(() => {
+         if (job && (job.status === 'RUNNING' || job.status === 'PENDING' || job.status === 'QUEUED')) {
+             fetchJob(active)
+         }
+      }, 3000)
+
+      return () => { 
+         active = false 
+         clearInterval(iv)
+      }
+   }, [jobId, job?.status])
+
+   const handleCancel = async () => {
+      if (!job) return
+      setIsCancelling(true)
+      try {
+         await cancelJob(job.id)
+         fetchJob()
+      } catch (e) {
+         console.error(e)
+      } finally {
+         setIsCancelling(false)
+         setShowCancelModal(false)
+      }
+   }
 
    useEffect(() => {
       const originalOverflowX = document.body.style.overflowX
@@ -391,6 +421,18 @@ function JobDetailPanel({ jobId, onClose, onViewResults }) {
                   </div>
                </div>
 
+               {(job.status === 'RUNNING' || job.status === 'PENDING' || job.status === 'QUEUED') && (
+                  <button 
+                     onClick={() => setShowCancelModal(true)}
+                     style={{ 
+                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px',
+                        background: 'transparent', color: 'var(--red)', border: '1px solid var(--red)', borderRadius: 6, fontSize: 14, cursor: 'pointer', fontWeight: 600, marginBottom: 12
+                     }}
+                  >
+                     Cancel Job
+                  </button>
+               )}
+
                <button 
                   className="btn-primary" 
                   style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px' }}
@@ -401,6 +443,47 @@ function JobDetailPanel({ jobId, onClose, onViewResults }) {
                </button>
             </div>
          </div>
+
+         {showCancelModal && (
+          <div style={{
+            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100
+          }}>
+            <div style={{
+              background: 'var(--surface)', padding: 24, borderRadius: 12, width: 340,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.4)', border: '1px solid var(--border)',
+              display: 'flex', flexDirection: 'column', gap: 16
+            }}>
+              <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)' }}>Cancel Processing Job?</div>
+              <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.5 }}>
+                This will stop the running processing job. Any incomplete processing results will not be persisted.
+              </div>
+              <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+                <button 
+                  onClick={() => setShowCancelModal(false)}
+                  style={{
+                    flex: 1, padding: '8px', borderRadius: 6, background: 'var(--surface2)',
+                    color: 'var(--text)', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500
+                  }}
+                  disabled={isCancelling}
+                >
+                  Keep Running
+                </button>
+                <button 
+                  onClick={handleCancel}
+                  style={{
+                    flex: 1, padding: '8px', borderRadius: 6, background: 'var(--red)',
+                    color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                    opacity: isCancelling ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
+                  }}
+                  disabled={isCancelling}
+                >
+                  {isCancelling ? <><SpinIcon size={14} style={{ animation: 'spin 1s linear infinite' }} /> Cancelling...</> : 'Cancel Job'}
+                </button>
+              </div>
+            </div>
+          </div>
+         )}
       </div>
    )
 }

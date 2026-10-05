@@ -79,7 +79,7 @@ def test_download_sample_success(mock_path_class):
     mock_path_class.return_value = mock_path
     
     # Use patch for FileResponse because returning an actual file in tests might need a real file
-    with patch("app.api.frontend_api.FileResponse") as mock_file_response:
+    with patch("fastapi.responses.FileResponse") as mock_file_response:
         mock_file_response.return_value = {"mock": "response"}
         
         # Test directly with FastAPI routing by simulating

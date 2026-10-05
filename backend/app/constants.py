@@ -92,3 +92,18 @@ IT_BATCH_JOB = 'it_batch_job'
 REASSIGNMENT_COUNT = 'reassignment_count'
 OFFENDING_CI = 'offending_ci'
 OFFENDING_CI_CATEGORY = 'offending_ci_category'
+
+# ==========================================================
+# Processing Job Types
+# ==========================================================
+
+JOB_TYPE_PROCESSING = "PROCESSING"
+JOB_TYPE_AI_CLUSTER_NAMING = "AI_CLUSTER_NAMING"
+
+# ==========================================================
+# Cluster Naming Status
+# ==========================================================
+
+NAMING_STATUS_STANDARD = "STANDARD"
+NAMING_STATUS_AI_ENRICHED = "AI_ENRICHED"
+

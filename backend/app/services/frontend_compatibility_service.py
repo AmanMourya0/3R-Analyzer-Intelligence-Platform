@@ -717,11 +717,25 @@ class FrontendCompatibilityService:
         """
         session = self._session()
         try:
+            from app.constants import JOB_TYPE_PROCESSING, JOB_STATUS_PENDING, JOB_STATUS_RUNNING
+            
+            # Find the active processing job first
             latest_job = (
                 session.query(ProcessingJob)
+                .filter(ProcessingJob.job_type == JOB_TYPE_PROCESSING)
+                .filter(ProcessingJob.status.in_([JOB_STATUS_PENDING, JOB_STATUS_RUNNING]))
                 .order_by(ProcessingJob.created_at.desc())
                 .first()
             )
+            
+            # If no active job, find the most recent processing job
+            if latest_job is None:
+                latest_job = (
+                    session.query(ProcessingJob)
+                    .filter(ProcessingJob.job_type == JOB_TYPE_PROCESSING)
+                    .order_by(ProcessingJob.created_at.desc())
+                    .first()
+                )
 
             if latest_job is None:
                 return {"status": "idle", "message": "No processing jobs found.", "result": None}
@@ -760,11 +774,14 @@ class FrontendCompatibilityService:
                     "result": None,
                 }
             elif job_status in ("PENDING", "RUNNING"):
+                percent = latest_job.progress_percent or 0
+                if percent >= 100:
+                    percent = 99
                 return {
                     "status": "processing",
                     "message": progress_msg or "Processing...",
                     "stage": latest_job.progress_stage or "PENDING",
-                    "percent": latest_job.progress_percent or 0,
+                    "percent": percent,
                     "job_id": str(latest_job.id),
                     "result": None,
                 }

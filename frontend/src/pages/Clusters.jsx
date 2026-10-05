@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ChevronDown, ChevronRight, Flag, ExternalLink } from 'lucide-react'
-import { getClusters, getCIList, getClusterDetail } from '../api'
+import { getClusters, getCIList, getClusterDetail, enrichClusterNames, getEnrichmentStatus } from '../api'
 import Card from '../components/Card'
 import Badge from '../components/Badge'
 import ExportMenu from '../components/ExportMenu'
@@ -28,6 +28,33 @@ export default function Clusters() {
   const [flagged, setFlagged] = useState(loadFlagged)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [enrichment, setEnrichment] = useState({ status: 'STANDARD', percent: 0 })
+
+  const pollEnrichment = () => {
+    getEnrichmentStatus().then(res => {
+      const { naming_status, job } = res.data;
+      setEnrichment(prev => {
+        // If it was running and is now enriched, refresh clusters
+        if (prev.status === 'AI_ENRICHMENT_RUNNING' && naming_status === 'AI_ENRICHED') {
+          getClusters().then(cr => setClusters(cr.data.clusters || []));
+        }
+        return { status: naming_status, percent: job?.progress_percent || 0 };
+      });
+      if (naming_status === 'AI_ENRICHMENT_RUNNING') {
+        setTimeout(pollEnrichment, 3000);
+      }
+    }).catch(() => {});
+  };
+
+  const handleEnrich = async () => {
+    try {
+      await enrichClusterNames();
+      setEnrichment({ status: 'AI_ENRICHMENT_RUNNING', percent: 0 });
+      setTimeout(pollEnrichment, 1000);
+    } catch (e) {
+      alert("Failed to start enrichment: " + (e.response?.data?.detail || e.message));
+    }
+  };
 
   useEffect(() => {
     Promise.all([getClusters(), getCIList()])
@@ -42,6 +69,8 @@ export default function Clusters() {
       })
       .catch(() => setError('No data loaded yet. Upload a CSV to get started.'))
       .finally(() => setLoading(false))
+
+    pollEnrichment();
   }, [initialClusterId])
 
   function toggleFlag(e, cid, clusterName, ticketCount) {
@@ -102,9 +131,25 @@ export default function Clusters() {
             )}
           </p>
         </div>
-        <select value={selectedCI} onChange={e => handleCIChange(e.target.value)} style={selectStyle}>
-          {ciList.map(ci => <option key={ci} value={ci}>{ci}</option>)}
-        </select>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          {enrichment.status === 'AI_ENRICHMENT_RUNNING' ? (
+            <div style={{ fontSize: 13, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span className="spinner-small" style={{ width: 12, height: 12, border: '2px solid var(--accent)', borderRightColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+              AI Cluster Naming... {enrichment.percent}%
+            </div>
+          ) : enrichment.status === 'AI_ENRICHED' ? (
+            <div style={{ fontSize: 13, color: 'var(--green)', fontWeight: 500 }}>
+              ✓ AI Enriched
+            </div>
+          ) : (
+            <button onClick={handleEnrich} style={{ background: 'var(--accent)', color: 'white', border: 'none', padding: '6px 12px', borderRadius: 6, fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>
+              Enhance Cluster Names with AI
+            </button>
+          )}
+          <select value={selectedCI} onChange={e => handleCIChange(e.target.value)} style={selectStyle}>
+            {ciList.map(ci => <option key={ci} value={ci}>{ci}</option>)}
+          </select>
+        </div>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

@@ -221,3 +221,163 @@ class JobService:
             raise
         finally:
             session.close()
+
+    # ==================================================================
+    # AI Enrichment Job Operations
+    # ==================================================================
+
+    def create_enrichment_job(self) -> ProcessingJob:
+        """
+        Create and schedule an AI cluster naming enrichment job.
+
+        Validates:
+        - No active processing jobs are running
+        - No other enrichment job is currently running
+        - Processed data exists in the database
+        """
+        session: Session = SessionLocal()
+
+        try:
+            repo = JobRepository(session)
+
+            # Check for active processing jobs
+            from app.constants import JOB_STATUS_RUNNING, JOB_TYPE_AI_CLUSTER_NAMING
+            from app.database.cluster_model import Cluster
+            from sqlalchemy import func
+
+            active_processing = (
+                session.query(ProcessingJob)
+                .filter(
+                    ProcessingJob.status.in_(["PENDING", JOB_STATUS_RUNNING]),
+                    ProcessingJob.job_type != JOB_TYPE_AI_CLUSTER_NAMING,
+                )
+                .count()
+            )
+            if active_processing > 0:
+                raise ValueError(
+                    "AI cluster-name enrichment can start only after dataset processing is complete."
+                )
+
+            # Check for running enrichment
+            if repo.has_running_enrichment_job():
+                raise ValueError(
+                    "AI cluster-name enrichment is already running."
+                )
+
+            # Check that processed data exists
+            cluster_count = session.query(func.count(Cluster.cluster_id)).scalar() or 0
+            if cluster_count == 0:
+                raise ValueError(
+                    "No processed dataset is available for AI cluster-name enrichment."
+                )
+
+            job = repo.create_enrichment_job()
+            session.commit()
+            session.refresh(job)
+
+            self.scheduler_service.schedule_enrichment_job(job.id)
+
+            logger.info("Created enrichment job %s.", job.id)
+
+            session.expunge(job)
+            return job
+
+        except ValueError:
+            session.rollback()
+            raise
+        except Exception:
+            session.rollback()
+            logger.exception("Unable to create enrichment job.")
+            raise
+        finally:
+            session.close()
+
+    def get_enrichment_status(self) -> dict:
+        """
+        Return the current AI cluster naming enrichment status.
+
+        Returns a dict with:
+        - naming_status: STANDARD | AI_ENRICHMENT_RUNNING | AI_ENRICHED | AI_ENRICHMENT_FAILED
+        - job: latest enrichment job info or None
+        """
+        session: Session = SessionLocal()
+        try:
+            from app.constants import JOB_TYPE_AI_CLUSTER_NAMING
+            from app.database.cluster_model import Cluster
+            from sqlalchemy import func
+
+            # Find latest enrichment job
+            latest_enrichment = (
+                session.query(ProcessingJob)
+                .filter(ProcessingJob.job_type == JOB_TYPE_AI_CLUSTER_NAMING)
+                .order_by(ProcessingJob.created_at.desc())
+                .first()
+            )
+
+            if latest_enrichment is None:
+                return {"naming_status": "STANDARD", "job": None}
+
+            # Find latest completed processing job to define current snapshot identity
+            from app.constants import JOB_TYPE_PROCESSING, JOB_STATUS_COMPLETED
+            latest_processing = (
+                session.query(ProcessingJob)
+                .filter(ProcessingJob.job_type == JOB_TYPE_PROCESSING)
+                .filter(ProcessingJob.status == JOB_STATUS_COMPLETED)
+                .order_by(ProcessingJob.created_at.desc())
+                .first()
+            )
+
+            # If the latest core dataset snapshot is newer than the latest enrichment job,
+            # then the old enrichment no longer applies to the current data.
+            if latest_processing and latest_processing.created_at > latest_enrichment.created_at:
+                return {"naming_status": "STANDARD", "job": None}
+
+            status = latest_enrichment.status or ""
+
+            if status in ("PENDING", "RUNNING"):
+                return {
+                    "naming_status": "AI_ENRICHMENT_RUNNING",
+                    "job": {
+                        "id": str(latest_enrichment.id),
+                        "status": status,
+                        "progress_stage": latest_enrichment.progress_stage,
+                        "progress_message": latest_enrichment.progress_message,
+                        "progress_percent": latest_enrichment.progress_percent or 0,
+                    },
+                }
+
+            if status == "COMPLETED":
+                return {
+                    "naming_status": "AI_ENRICHED",
+                    "job": {
+                        "id": str(latest_enrichment.id),
+                        "status": status,
+                        "progress_stage": latest_enrichment.progress_stage,
+                        "progress_message": latest_enrichment.progress_message,
+                        "progress_percent": 100,
+                        "processing_time_seconds": latest_enrichment.processing_time_seconds,
+                        "completed_at": str(latest_enrichment.completed_at) if latest_enrichment.completed_at else None,
+                    },
+                }
+
+            if status == "FAILED":
+                return {
+                    "naming_status": "AI_ENRICHMENT_FAILED",
+                    "job": {
+                        "id": str(latest_enrichment.id),
+                        "status": status,
+                        "error_message": latest_enrichment.error_message,
+                        "progress_stage": latest_enrichment.progress_stage,
+                        "progress_message": latest_enrichment.progress_message,
+                        "progress_percent": latest_enrichment.progress_percent or 0,
+                    },
+                }
+
+            return {"naming_status": "STANDARD", "job": None}
+
+        except Exception:
+            logger.exception("Unable to get enrichment status.")
+            raise
+        finally:
+            session.close()
+

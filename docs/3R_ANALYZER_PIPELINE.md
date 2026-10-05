@@ -10,7 +10,7 @@ The 3R Analyzer pipeline consists of 11 strictly ordered stages.
 5. **STORING_EMBEDDINGS**: Temporarily holds vectors in memory for clustering.
 6. **CLUSTERING**: Groups similar embeddings using optimized DBSCAN with cosine similarity.
 7. **CLUSTER_ANALYSIS**: Aggregates metadata (top CI, top Assignment Group) per cluster.
-8. **NAMING_CLUSTERS**: Uses KeyBERT to extract a readable 3-4 word summary phrase for the cluster.
+8. **NAMING_CLUSTERS**: Uses a fast term-frequency approach to extract a deterministic name for the cluster. *(Note: AI-powered KeyBERT naming is now an optional asynchronous enrichment step)*.
 9. **RECURRENCE_ANALYSIS**: Analyzes the time-series distribution of the cluster to find bursts or sustained activity.
 10. **THREE_R_CLASSIFICATION**: Applies the Runner/Repeater/Rare logic to each cluster.
 11. **PERSISTING_RESULTS**: Safely writes all records to PostgreSQL using transaction chunks.

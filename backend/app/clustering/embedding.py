@@ -11,7 +11,7 @@ Output:
     List of 384-dimensional embeddings
 """
 
-from typing import List
+from typing import List, Optional, Callable
 
 import numpy as np
 from sentence_transformers import SentenceTransformer
@@ -48,15 +48,18 @@ class SemanticEmbeddingGenerator(EmbeddingInterface):
             raise
 
     def generate_embeddings(
-    self,
-    texts: List[str]
-) -> np.ndarray:
+        self,
+        texts: List[str],
+        check_cancellation: Optional[Callable] = None
+    ) -> np.ndarray:
         """
         Generate embeddings for a list of incident texts.
 
         Args:
             texts:
                 List containing incident descriptions.
+            check_cancellation:
+                Optional callable to cooperatively abort the operation.
 
         Returns:
             NumPy array of embedding vectors.
@@ -64,23 +67,40 @@ class SemanticEmbeddingGenerator(EmbeddingInterface):
 
         try:
 
+            total = len(texts)
+            batch_size = settings.EMBEDDING_BATCH_SIZE
+
             logger.info(
-                "Generating embeddings for %s incidents...",
-                len(texts)
+                "Generating embeddings for %s incidents in batches of %s...",
+                total, batch_size
             )
 
-            embeddings = self.model.encode(
-                texts,
-                batch_size=settings.EMBEDDING_BATCH_SIZE,
-                show_progress_bar=True,
-                convert_to_numpy=True
-            )
+            all_embeddings = []
+
+            for start_idx in range(0, total, batch_size):
+                if check_cancellation:
+                    check_cancellation()
+
+                batch = texts[start_idx:start_idx + batch_size]
+                batch_embeddings = self.model.encode(
+                    batch,
+                    batch_size=batch_size,
+                    show_progress_bar=False,
+                    convert_to_numpy=True
+                )
+                all_embeddings.append(batch_embeddings)
+
+            if check_cancellation:
+                check_cancellation()
 
             logger.info("Embedding generation completed.")
 
-            return embeddings
+            return np.vstack(all_embeddings) if all_embeddings else np.array([])
 
-        except Exception:
+        except Exception as e:
+            if type(e).__name__ == "JobCancelledException":
+                logger.info("Embedding generation was cancelled.")
+                raise
 
             logger.exception(
                 "Embedding generation failed."

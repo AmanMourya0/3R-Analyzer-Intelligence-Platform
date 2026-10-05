@@ -55,8 +55,15 @@ class PipelineProfiler:
 @contextmanager
 def stage_timer(stage_name: str, records_processed: Optional[int] = None):
     start_time = time.time()
+    status = "COMPLETED"
     try:
         yield
+    except Exception as e:
+        if type(e).__name__ == "JobCancelledException":
+            status = "CANCELLED"
+        else:
+            status = "FAILED"
+        raise
     finally:
         end_time = time.time()
         duration_seconds = end_time - start_time
@@ -70,4 +77,4 @@ def stage_timer(stage_name: str, records_processed: Optional[int] = None):
         profiler = PipelineProfiler.get_instance()
         profiler.add_timing(timing)
         from app.utils.logger import logger
-        logger.info(f"job_id={getattr(profiler, 'current_job_id', 'unknown')} stage={stage_name} status=COMPLETED duration_ms={int(duration_seconds * 1000)} incident_count={records_processed or 0}")
+        logger.info(f"job_id={getattr(profiler, 'current_job_id', 'unknown')} stage={stage_name} status={status} duration_ms={int(duration_seconds * 1000)} incident_count={records_processed or 0}")
